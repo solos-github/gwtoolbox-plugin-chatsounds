@@ -86,6 +86,7 @@ Dort kannst du:
 - Chatkanäle auswählen
 - Eigene WAV-Dateien verwenden
 - Sounds testen
+- Den Sound zu verschlossenen Truhen hinterlegen
 - Den globalen Cooldown einstellen
 
 ### Aktualisieren
