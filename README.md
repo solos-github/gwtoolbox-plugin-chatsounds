@@ -23,7 +23,7 @@
 - 🧪 Test-Button für jeden Sound
 - 🔠 Optionale Groß-/Kleinschreibung
 - ⏱ Globaler Sound-Cooldown
-- 💾 Automatisches Speichern aller Einstellungen
+- 💾 Automatisches Speichern aller Einstellungen(wird gespeichert wenn die toolboxsettings gespeichert werden)
 - ⚡ Asynchrone Audiowiedergabe ohne Guild Wars zu blockieren
 - Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
   
