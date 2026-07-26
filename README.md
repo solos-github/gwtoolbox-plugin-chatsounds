@@ -60,6 +60,7 @@ nach
 
 ```text
 GWToolboxpp/
+└── randomtoolboxid xxxxx/
 └── plugins/
     └── ChatSoundsPlugin.dll
 ```
