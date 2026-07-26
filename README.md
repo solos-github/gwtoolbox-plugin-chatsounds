@@ -56,6 +56,8 @@
 
 If you downloaded a precompiled `ChatSoundsPlugin.dll`, you do **not** need Visual Studio or the GWToolbox++ source code.
 
+Check Releases on the left:  'https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases'
+
 ## 1. Locate your plugins folder
 
 Open your GWToolbox++ installation directory and navigate to:
