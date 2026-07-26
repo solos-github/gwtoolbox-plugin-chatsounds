@@ -1,6 +1,3 @@
-# ChatSoundsPlugin
-
-
 # ChatSoundsPlugin (Deutsch)
 
 > Ein leichtgewichtiges Plugin für GWToolbox++, das benutzerdefinierte Benachrichtigungstöne für Whisper und frei definierbare Chat-Schlagwörter abspielt.
