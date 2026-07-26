@@ -133,6 +133,7 @@ The plugin will no longer be loaded.
 # Installation (Vorkompilierte DLL)
 
 Wenn du eine bereits kompilierte `ChatSoundsPlugin.dll` heruntergeladen hast, benötigst du **weder Visual Studio noch den GWToolbox++-Quellcode**.
+Download ist hier https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases/tag/dll
 
 ## 1. Plugin-Ordner öffnen
 
