@@ -1,8 +1,5 @@
 # ChatSoundsPlugin
 
-> A lightweight Guild Wars Toolbox++ plugin that plays custom notification sounds for whispers and keyword matches.
-
----
 
 # ChatSoundsPlugin (Deutsch)
 
@@ -11,25 +8,6 @@
 ---
 
 ## Features
-
-### English
-
-- 🔔 Play a sound when receiving a whisper
-- 💬 Create unlimited keyword-based sound notifications
-- 🎯 Filter by chat channel
-  - Any
-  - Local
-  - Guild
-  - Alliance
-  - Party
-  - Trade
-  - Whisper
-- 🎵 Individual WAV file for every rule
-- 🧪 Built-in sound test button
-- 🔠 Optional case-sensitive matching
-- ⏱ Global sound cooldown
-- 💾 Automatic settings persistence
-- ⚡ Lightweight and asynchronous playback
 
 ### Deutsch
 
@@ -51,86 +29,9 @@
 - ⚡ Asynchrone Audiowiedergabe ohne Guild Wars zu blockieren
 
 ---
+# Screenshot
 
-# Installation (Prebuilt DLL)
-
-If you downloaded a precompiled `ChatSoundsPlugin_by_wolle.dll`, you do **not** need Visual Studio or the GWToolbox++ source code.
-
-Check Releases on the left:  'https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases'
-
-## 1. Locate your plugins folder
-
-Open your GWToolbox++ installation directory and navigate to:
-
-```text
-plugins/
-```
-
-If the folder does not exist, simply create it.
-
-## 2. Copy the plugin
-
-Copy
-
-```text
-ChatSoundsPlugin_by_wolle.dll
-```
-
-into
-
-```text
-GWToolboxpp/
-└── plugins/
-    └── ChatSoundsPlugin_by_wolle.dll
-```
-
-## 3. Start Guild Wars
-
-Launch Guild Wars normally with GWToolbox++.
-
-The plugin will automatically be loaded during startup.
-
-## 4. Configure the plugin
-
-Open
-
-```
-GWToolbox
-→ Settings
-→ Plugins
-→ Chat Sounds
-```
-
-From there you can:
-
-- Enable whisper notifications
-- Create keyword rules
-- Select chat channels
-- Choose WAV files
-- Test sounds
-- Configure the cooldown
-
-### Updating
-
-1. Close Guild Wars.
-2. Replace `ChatSoundsPlugin_by_wolle.dll` with the new version.
-3. Start Guild Wars again.
-
-Your settings will be preserved.
-
-### Removing
-
-Delete
-
-```text
-plugins/ChatSoundsPlugin_by_wolle.dll
-```
-
-and restart Guild Wars.
-
-The plugin will no longer be loaded.
-
----
+<img width="800" height="800" alt="image" src="https://github.com/user-attachments/assets/4e876a69-2861-46f0-8626-144362b80c4c" />
 
 # Installation (Vorkompilierte DLL)
 
@@ -211,16 +112,6 @@ Das Plugin wird anschließend nicht mehr geladen.
 
 ---
 
-# Developer Requirements
-
-- Windows or Linux (Wine)
-- Guild Wars
-- GWToolbox++
-- Visual Studio 2022
-- CMake
-- vcpkg
-
----
 
 # Entwickler-Voraussetzungen
 
@@ -233,52 +124,6 @@ Das Plugin wird anschließend nicht mehr geladen.
 
 ---
 
-# Building from Source
-
-Copy the plugin into the GWToolbox++ source tree:
-
-```text
-GWToolboxpp/
-└── plugins/
-    └── ChatSoundsPlugin/
-        ├── ChatSoundsPlugin.cpp
-        └── ChatSoundsPlugin.h
-```
-
-Register the plugin in
-
-```text
-cmake/gwtoolboxdll_plugins.cmake
-```
-
-```cmake
-add_tb_plugin(ChatSoundsPlugin)
-
-target_link_libraries(ChatSoundsPlugin PRIVATE
-    winmm
-    comdlg32
-)
-```
-
-Configure:
-
-```powershell
-cmake --preset=vcpkg
-```
-
-Build:
-
-```powershell
-cmake --build build --config RelWithDebInfo --target ChatSoundsPlugin
-```
-
-The compiled DLL will be located in:
-
-```text
-bin/RelWithDebInfo/ChatSoundsPlugin_by_wolle.dll
-```
-
----
 
 # Kompilieren (Quellcode)
 
@@ -327,35 +172,6 @@ bin/RelWithDebInfo/ChatSoundsPlugin_by_wolle.dll
 
 ---
 
-# Usage
-
-## Whisper notification
-
-1. Enable **Whisper Sound**
-2. Select a WAV file
-3. Press **Test**
-
-## Keyword rules
-
-Create a rule by specifying:
-
-- Chat channel
-- Keyword
-- WAV file
-- Optional case-sensitive matching
-
-Example:
-
-| Channel | Keyword | Sound |
-|----------|----------|-------|
-| Guild | DoA | guild.wav |
-| Trade | Obsidian | trade.wav |
-| Any | Ecto | ecto.wav |
-
-Whenever a matching message is received, the configured sound will be played.
-
----
-
 # Verwendung
 
 ## Whisper-Benachrichtigung
@@ -385,19 +201,6 @@ Sobald eine passende Nachricht erscheint, wird der konfigurierte Sound abgespiel
 
 ---
 
-# Supported Audio
-
-Currently supported:
-
-- WAV
-
-Recommended:
-
-- PCM
-- 16 Bit
-- 44.1 kHz
-
----
 
 # Unterstützte Audioformate
 
@@ -410,19 +213,6 @@ Empfohlen:
 - PCM
 - 16 Bit
 - 44,1 kHz
-
----
-
-# Technical Details
-
-The plugin uses the same UI message callbacks as the built-in GWToolbox++ ChatFilter:
-
-- `kPrintChatMessage`
-- `kPlayerChatMessage`
-
-This keeps the plugin compatible with modern GWToolbox++ versions while avoiding packet injection.
-
-Audio playback uses the Windows Multimedia API (`PlaySoundW`) asynchronously.
 
 ---
 
@@ -439,17 +229,6 @@ Die Audiowiedergabe erfolgt asynchron über die Windows Multimedia API (`PlaySou
 
 ---
 
-# Compatibility
-
-Designed for modern GWToolbox++ versions using:
-
-- `ToolboxPlugin`
-- `RegisterUIMessageCallback`
-- `GW::HookEntry`
-
-Older versions may require small adjustments.
-
----
 
 # Kompatibilität
 
@@ -463,11 +242,6 @@ Entwickelt für aktuelle Versionen von GWToolbox++ mit:
 
 ---
 
-# Contributing
-
-Pull requests, feature requests and bug reports are always welcome.
-
----
 
 # Mitwirken
 
@@ -475,23 +249,10 @@ Pull Requests, Verbesserungsvorschläge und Fehlermeldungen sind jederzeit willk
 
 ---
 
-# License
-
-MIT License
-
----
 
 # Lizenz
 
 MIT License
-
----
-
-# Disclaimer
-
-Guild Wars® is a registered trademark of ArenaNet, LLC.
-
-This project is an independent community plugin and is not affiliated with or endorsed by ArenaNet.
 
 ---
 
