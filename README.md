@@ -164,7 +164,7 @@ cmake --build build --config RelWithDebInfo --target ChatSoundsPlugin
 Die fertige DLL befindet sich anschließend unter:
 
 ```text
-bin/RelWithDebInfo/ChatSoundsPlugin_by_wolle.dll
+bin/RelWithDebInfo/ChatSoundsPlugin.dll
 ```
 
 ---
