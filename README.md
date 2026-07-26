@@ -29,18 +29,7 @@ If you downloaded a precompiled `ChatSoundsPlugin.dll`, you do **not** need Visu
 
 ## 1. Locate your GWToolbox++ plugins folder
 
-Open your Guild Wars installation directory.
-
-Typical example:
-
-```text
-Guild Wars/
-├── Gw.exe
-├── GWToolboxdll.dll
-└── plugins/
-```
-
-If the `plugins` folder does not exist, create it.
+Open your gwtoolboxcpp installation directory.
 
 ## 2. Copy the plugin
 
@@ -53,15 +42,13 @@ ChatSoundsPlugin.dll
 into
 
 ```text
-Guild Wars/plugins/
+gwtoolboxcpp/XXXXXX/plugins/
 ```
 
 The result should look like:
 
 ```text
-Guild Wars/
-├── Gw.exe
-├── GWToolboxdll.dll
+gwtoolboxcpp/XXXXXX/
 └── plugins/
     └── ChatSoundsPlugin.dll
 ```
@@ -107,7 +94,7 @@ Your settings will be preserved.
 Simply delete:
 
 ```text
-Guild Wars/plugins/ChatSoundsPlugin.dll
+gwtoolboxcpp/XXXXXXX/plugins/ChatSoundsPlugin.dll
 ```
 
 and restart Guild Wars.
@@ -116,7 +103,7 @@ The plugin will no longer be loaded.
 
 
 
-## Requirements for devs
+## Requirements for devs only
 
 - Windows or Linucx with wine
 - Guild Wars
