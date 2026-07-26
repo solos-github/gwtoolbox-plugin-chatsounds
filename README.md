@@ -24,7 +24,7 @@
 - ⏱ Globaler Sound-Cooldown
 - 💾 Automatisches Speichern aller Einstellungen
 - ⚡ Asynchrone Audiowiedergabe ohne Guild Wars zu blockieren
-
+- Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
 ---
 # Screenshot
 
