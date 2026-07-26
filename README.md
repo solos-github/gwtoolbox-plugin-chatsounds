@@ -23,9 +23,102 @@
 
 ---
 
-## Requirements
+# Installation (Prebuilt DLL)
 
-- Windows
+If you downloaded a precompiled `ChatSoundsPlugin.dll`, you do **not** need Visual Studio or the GWToolbox++ source code.
+
+## 1. Locate your GWToolbox++ plugins folder
+
+Open your Guild Wars installation directory.
+
+Typical example:
+
+```text
+Guild Wars/
+├── Gw.exe
+├── GWToolboxdll.dll
+└── plugins/
+```
+
+If the `plugins` folder does not exist, create it.
+
+## 2. Copy the plugin
+
+Copy
+
+```text
+ChatSoundsPlugin.dll
+```
+
+into
+
+```text
+Guild Wars/plugins/
+```
+
+The result should look like:
+
+```text
+Guild Wars/
+├── Gw.exe
+├── GWToolboxdll.dll
+└── plugins/
+    └── ChatSoundsPlugin.dll
+```
+
+## 3. Start Guild Wars
+
+Launch Guild Wars normally with GWToolbox++.
+
+The plugin will be loaded automatically during startup.
+
+## 4. Configure the plugin
+
+Open:
+
+```
+GWToolbox
+→ Settings
+→ Plugins
+→ Chat Sounds
+```
+
+From there you can:
+
+- Enable whisper notifications
+- Add keyword rules
+- Choose chat channels
+- Select custom WAV files
+- Test your sounds
+- Configure the cooldown
+
+## Updating
+
+To update the plugin:
+
+1. Close Guild Wars.
+2. Replace `ChatSoundsPlugin.dll` with the newer version.
+3. Start Guild Wars again.
+
+Your settings will be preserved.
+
+## Removing the plugin
+
+Simply delete:
+
+```text
+Guild Wars/plugins/ChatSoundsPlugin.dll
+```
+
+and restart Guild Wars.
+
+The plugin will no longer be loaded.
+
+
+
+## Requirements for devs
+
+- Windows or Linucx with wine
 - Guild Wars
 - GWToolbox++
 - Visual Studio 2022
