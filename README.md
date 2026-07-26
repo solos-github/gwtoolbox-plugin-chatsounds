@@ -54,7 +54,7 @@
 
 # Installation (Prebuilt DLL)
 
-If you downloaded a precompiled `ChatSoundsPlugin.dll`, you do **not** need Visual Studio or the GWToolbox++ source code.
+If you downloaded a precompiled `ChatSoundsPlugin_by_wolle.dll`, you do **not** need Visual Studio or the GWToolbox++ source code.
 
 Check Releases on the left:  'https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases'
 
@@ -73,7 +73,7 @@ If the folder does not exist, simply create it.
 Copy
 
 ```text
-ChatSoundsPlugin.dll
+ChatSoundsPlugin_by_wolle.dll
 ```
 
 into
@@ -81,7 +81,7 @@ into
 ```text
 GWToolboxpp/
 └── plugins/
-    └── ChatSoundsPlugin.dll
+    └── ChatSoundsPlugin_by_wolle.dll
 ```
 
 ## 3. Start Guild Wars
@@ -113,7 +113,7 @@ From there you can:
 ### Updating
 
 1. Close Guild Wars.
-2. Replace `ChatSoundsPlugin.dll` with the new version.
+2. Replace `ChatSoundsPlugin_by_wolle.dll` with the new version.
 3. Start Guild Wars again.
 
 Your settings will be preserved.
@@ -123,7 +123,7 @@ Your settings will be preserved.
 Delete
 
 ```text
-plugins/ChatSoundsPlugin.dll
+plugins/ChatSoundsPlugin_by_wolle.dll
 ```
 
 and restart Guild Wars.
@@ -134,7 +134,7 @@ The plugin will no longer be loaded.
 
 # Installation (Vorkompilierte DLL)
 
-Wenn du eine bereits kompilierte `ChatSoundsPlugin.dll` heruntergeladen hast, benötigst du **weder Visual Studio noch den GWToolbox++-Quellcode**.
+Wenn du eine bereits kompilierte `ChatSoundsPlugin_by_wolle.dll` heruntergeladen hast, benötigst du **weder Visual Studio noch den GWToolbox++-Quellcode**.
 Download ist hier https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases/tag/dll
 
 ## 1. Plugin-Ordner öffnen
@@ -152,7 +152,7 @@ Falls der Ordner nicht existiert, kannst du ihn einfach erstellen.
 Kopiere
 
 ```text
-ChatSoundsPlugin.dll
+ChatSoundsPlugin_by_wolle.dll
 ```
 
 nach
@@ -160,7 +160,7 @@ nach
 ```text
 GWToolboxpp/
 └── plugins/
-    └── ChatSoundsPlugin.dll
+    └── ChatSoundsPlugin_by_wolle.dll
 ```
 
 ## 3. Guild Wars starten
@@ -192,7 +192,7 @@ Dort kannst du:
 ### Aktualisieren
 
 1. Guild Wars schließen.
-2. Die vorhandene `ChatSoundsPlugin.dll` durch die neue Version ersetzen.
+2. Die vorhandene `ChatSoundsPlugin_by_wolle.dll` durch die neue Version ersetzen.
 3. Guild Wars erneut starten.
 
 Alle Einstellungen bleiben erhalten.
@@ -202,7 +202,7 @@ Alle Einstellungen bleiben erhalten.
 Lösche
 
 ```text
-plugins/ChatSoundsPlugin.dll
+plugins/ChatSoundsPlugin_by_wolle.dll
 ```
 
 und starte Guild Wars erneut.
@@ -275,7 +275,7 @@ cmake --build build --config RelWithDebInfo --target ChatSoundsPlugin
 The compiled DLL will be located in:
 
 ```text
-bin/RelWithDebInfo/ChatSoundsPlugin.dll
+bin/RelWithDebInfo/ChatSoundsPlugin_by_wolle.dll
 ```
 
 ---
@@ -322,7 +322,7 @@ cmake --build build --config RelWithDebInfo --target ChatSoundsPlugin
 Die fertige DLL befindet sich anschließend unter:
 
 ```text
-bin/RelWithDebInfo/ChatSoundsPlugin.dll
+bin/RelWithDebInfo/ChatSoundsPlugin_by_wolle.dll
 ```
 
 ---
