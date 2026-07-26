@@ -35,26 +35,23 @@
 
 # Installation (Vorkompilierte DLL)
 
-Wenn du eine bereits kompilierte `ChatSoundsPlugin.dll` heruntergeladen hast, benötigst du **weder Visual Studio noch den GWToolbox++-Quellcode**.
-Download ist hier https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases/tag/dll
+Die aktuelle DLL `ChatSoundsPlugin.dll` hier https://github.com/solos-github/gwtoolbox-plugin-chatsounds/releases/tag/dll herunterladen.
 
 ## 1. Plugin-Ordner öffnen
 
 Öffne dein GWToolbox++-Verzeichnis und wechsle in den Ordner
 
-```text
-plugins/
+```GWToolboxpp/
+└── randomtoolboxid xxxxx/
+└── plugins/
 ```
 
 Falls der Ordner nicht existiert, kannst du ihn einfach erstellen.
 
 ## 2. Plugin kopieren
 
-Kopiere
+Kopiere zuvor heruntergeladene ChatSoundsPlugin.dll
 
-```text
-ChatSoundsPlugin.dll
-```
 
 nach
 
