@@ -9,6 +9,7 @@
 ### Deutsch
 
 - 🔔 Ton bei eingehenden Whispern
+- 🔔 eigener Ton bei verschlossenen Truhen in Kompassrange
 - 💬 Beliebig viele Schlagwort-Regeln
 - 🎯 Filter nach Chatkanal
   - Alle
@@ -25,10 +26,12 @@
 - 💾 Automatisches Speichern aller Einstellungen
 - ⚡ Asynchrone Audiowiedergabe ohne Guild Wars zu blockieren
 - Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
+  
 ---
 # Screenshot
 
-<img width="800" height="800" alt="image" src="https://github.com/user-attachments/assets/4e876a69-2861-46f0-8626-144362b80c4c" />
+<img width="777" height="1114" alt="image" src="https://github.com/user-attachments/assets/632d2060-6da7-483f-9ee8-41723da8ca8c" />
+
 
 # Installation (Vorkompilierte DLL)
 
