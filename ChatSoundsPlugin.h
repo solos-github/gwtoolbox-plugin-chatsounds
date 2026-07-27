@@ -78,6 +78,7 @@ private:
     std::chrono::steady_clock::time_point last_nearby_scan_{};
 
     int cooldown_ms_ = 1500;
+    int sound_volume_percent_ = 100;
     std::chrono::steady_clock::time_point last_sound_{};
     struct NearbyAgentDebug {
         uint32_t agent_id = 0;
