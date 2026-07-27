@@ -8,7 +8,7 @@
 
 #include <Windows.h>
 #include <commdlg.h>
-#include <mmsystem.h>
+#include <dshow.h>
 
 #include <algorithm>
 #include <cmath>
@@ -17,7 +17,8 @@
 #include <ranges>
 #include <unordered_set>
 
-#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "strmiids.lib")
+#pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comdlg32.lib")
 
 namespace {
@@ -95,6 +96,10 @@ void ChatSoundsPlugin::Initialize(
     const HMODULE toolbox_dll)
 {
     ToolboxPlugin::Initialize(ctx, allocator_fns, toolbox_dll);
+
+    const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    com_initialized_by_plugin_ = SUCCEEDED(com_result);
+
     plugin_instance = this;
     RegisterChatHooks();
 }
@@ -284,7 +289,13 @@ void ChatSoundsPlugin::ScanNearbyObjects()
 void ChatSoundsPlugin::SignalTerminate()
 {
     RemoveChatHooks();
-    PlaySoundW(nullptr, nullptr, 0);
+    StopSound();
+
+    if (com_initialized_by_plugin_) {
+        CoUninitialize();
+        com_initialized_by_plugin_ = false;
+    }
+
     plugin_instance = nullptr;
     ToolboxPlugin::SignalTerminate();
 }
@@ -440,6 +451,28 @@ bool ChatSoundsPlugin::CooldownElapsed() const
     return elapsed.count() >= cooldown_ms_;
 }
 
+void ChatSoundsPlugin::StopSound()
+{
+    if (audio_control_) {
+        audio_control_->Stop();
+    }
+
+    if (basic_audio_) {
+        basic_audio_->Release();
+        basic_audio_ = nullptr;
+    }
+
+    if (audio_control_) {
+        audio_control_->Release();
+        audio_control_ = nullptr;
+    }
+
+    if (audio_graph_) {
+        audio_graph_->Release();
+        audio_graph_ = nullptr;
+    }
+}
+
 void ChatSoundsPlugin::PlayWav(
     const std::filesystem::path& path)
 {
@@ -452,20 +485,71 @@ void ChatSoundsPlugin::PlayWav(
         return;
     }
 
-    const DWORD channel_volume = static_cast<DWORD>(
-        (0xFFFFu * static_cast<unsigned int>(
-            std::clamp(sound_volume_percent_, 0, 100))) / 100u);
+    StopSound();
 
-    // Apply the configured level to both stereo channels before playback.
-    waveOutSetVolume(
+    HRESULT result = CoCreateInstance(
+        CLSID_FilterGraph,
         nullptr,
-        MAKELONG(channel_volume, channel_volume));
+        CLSCTX_INPROC_SERVER,
+        IID_IGraphBuilder,
+        reinterpret_cast<void**>(&audio_graph_));
 
-    if (PlaySoundW(
-            path.c_str(),
-            nullptr,
-            SND_FILENAME | SND_ASYNC | SND_NODEFAULT) != FALSE) {
+    if (FAILED(result) || !audio_graph_) {
+        StopSound();
+        return;
+    }
+
+    result = audio_graph_->QueryInterface(
+        IID_IMediaControl,
+        reinterpret_cast<void**>(&audio_control_));
+
+    if (FAILED(result) || !audio_control_) {
+        StopSound();
+        return;
+    }
+
+    result = audio_graph_->QueryInterface(
+        IID_IBasicAudio,
+        reinterpret_cast<void**>(&basic_audio_));
+
+    if (FAILED(result) || !basic_audio_) {
+        StopSound();
+        return;
+    }
+
+    result = audio_graph_->RenderFile(path.c_str(), nullptr);
+
+    if (FAILED(result)) {
+        StopSound();
+        return;
+    }
+
+    const int percent =
+        std::clamp(sound_volume_percent_, 0, 100);
+
+    // DirectShow uses hundredths of a decibel:
+    // 0 = full volume, -10000 = silence.
+    long direct_show_volume = -10000;
+
+    if (percent > 0) {
+        const double linear_gain =
+            static_cast<double>(percent) / 100.0;
+
+        direct_show_volume = static_cast<long>(
+            std::lround(2000.0 * std::log10(linear_gain)));
+
+        direct_show_volume =
+            std::clamp(direct_show_volume, -10000L, 0L);
+    }
+
+    basic_audio_->put_Volume(direct_show_volume);
+
+    result = audio_control_->Run();
+
+    if (SUCCEEDED(result)) {
         last_sound_ = std::chrono::steady_clock::now();
+    } else {
+        StopSound();
     }
 }
 
@@ -656,7 +740,11 @@ void ChatSoundsPlugin::DrawSettings()
                 std::clamp(sound_volume_percent_, 0, 100);
             ImGui::TextColored(
                 muted,
-                "Applied when the plugin starts a WAV sound.");
+                "Controls the volume of this plugin only. Uses DirectShow playback rather than PlaySoundW.");
+
+            ImGui::TextColored(
+                muted,
+                "For a clear test, compare 100%%, 25%% and 0%% using a Test Sound button.");
 
             ImGui::Spacing();
             ImGui::SetNextItemWidth(300.0f);
@@ -675,7 +763,7 @@ void ChatSoundsPlugin::DrawSettings()
             if (ImGui::Button(
                     "Stop Current Sound",
                     ImVec2(180.0f, 0.0f))) {
-                PlaySoundW(nullptr, nullptr, 0);
+                StopSound();
             }
 
             ImGui::EndTabItem();
