@@ -44,6 +44,10 @@
 <img width="769" height="324" alt="image" src="https://github.com/user-attachments/assets/828f63e9-8dcd-4b3e-b56e-02a12e2d1940" />
 
 
+## Settings 
+<img width="769" height="358" alt="image" src="https://github.com/user-attachments/assets/3fcbf4c2-4ba0-4dcb-b066-727ecc8977be" />
+
+
 
 
 # Installation (Vorkompilierte DLL)
