@@ -51,7 +51,11 @@ public:
     void SaveSettings(const wchar_t* folder) override;
 
     // Called by the free GWCA callbacks.
-    void HandleChatPacket(uint32_t channel, const wchar_t* encoded_message);
+    void HandleChatPacket(
+        uint32_t channel,
+        const wchar_t* encoded_message);
+    void HandleIncomingWhisper(
+        const wchar_t* encoded_message);
 
 private:
     void ScanNearbyObjects();
