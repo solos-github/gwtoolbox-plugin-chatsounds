@@ -10,6 +10,10 @@
 #include <vector>
 #include <unordered_set>
 
+struct IGraphBuilder;
+struct IMediaControl;
+struct IBasicAudio;
+
 class ChatSoundsPlugin final : public ToolboxPlugin {
 public:
     enum class ChannelFilter : int {
@@ -55,6 +59,7 @@ private:
     void RemoveChatHooks();
 
     void PlayWav(const std::filesystem::path& path);
+    void StopSound();
     bool SelectWav(std::filesystem::path& target);
     bool CooldownElapsed() const;
 
@@ -79,6 +84,10 @@ private:
 
     int cooldown_ms_ = 1500;
     int sound_volume_percent_ = 100;
+    IGraphBuilder* audio_graph_ = nullptr;
+    IMediaControl* audio_control_ = nullptr;
+    IBasicAudio* basic_audio_ = nullptr;
+    bool com_initialized_by_plugin_ = false;
     std::chrono::steady_clock::time_point last_sound_{};
     struct NearbyAgentDebug {
         uint32_t agent_id = 0;
