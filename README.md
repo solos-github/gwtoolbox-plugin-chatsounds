@@ -8,10 +8,10 @@
 
 ### Deutsch
 
-- 🔔 Ton bei eingehenden Whispern
-- 🔔 eigener Ton bei verschlossenen Truhen in Kompassrange
-- 💬 Beliebig viele Schlagwort-Regeln
-- 🎯 Filter nach Chatkanal
+- 🔔 Eigener Ton bei eingehenden Whispern
+- 🔔 Eigener Ton bei "verschlossenen Truhen" in Kompassrange
+- 💬 Beliebig viele Schlagwort-Regeln und jeweils eigene Sounds 🎵 dazu
+  - 🎯 Filter nach Chatkanal
   - Alle
   - Lokal
   - Gilde
@@ -19,10 +19,9 @@
   - Gruppe
   - Handel
   - Whisper
-- 🎵 Eigene WAV-Datei für jede Regel
 - 🧪 Test-Button für jeden Sound
 - 🔠 Optionale Groß-/Kleinschreibung
-- ⏱ Globaler Sound-Cooldown
+- ⏱ Globaler Sound-Cooldown sowie Lautstärkenanpassung unter Settings
 - 💾 Automatisches Speichern aller Einstellungen(wird gespeichert wenn die toolboxsettings gespeichert werden)
 - ⚡ Asynchrone Audiowiedergabe ohne Guild Wars zu blockieren
 - Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
@@ -30,10 +29,14 @@
 ---
 # Screenshots
 
+Whisper-Alarm 
+<img width="776" height="320" alt="image" src="https://github.com/user-attachments/assets/16b93176-21ad-4e89-85fb-e7a4752bb953" />
+
+Locked Chests
 <img width="780" height="435" alt="image" src="https://github.com/user-attachments/assets/1120b239-d1e1-4ca8-873b-849271db044e" />
 
 
-##Keywordalarms
+#Keyword Alerts
 <img width="769" height="324" alt="image" src="https://github.com/user-attachments/assets/828f63e9-8dcd-4b3e-b56e-02a12e2d1940" />
 
 
