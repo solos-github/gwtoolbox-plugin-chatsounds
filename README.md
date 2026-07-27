@@ -30,7 +30,8 @@
 ---
 # Screenshot
 
-<img width="777" height="1114" alt="image" src="https://github.com/user-attachments/assets/632d2060-6da7-483f-9ee8-41723da8ca8c" />
+<img width="780" height="435" alt="image" src="https://github.com/user-attachments/assets/1120b239-d1e1-4ca8-873b-849271db044e" />
+
 
 
 # Installation (Vorkompilierte DLL)
