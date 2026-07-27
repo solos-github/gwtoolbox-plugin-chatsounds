@@ -32,11 +32,12 @@
 Whisper-Alarm 
 <img width="776" height="320" alt="image" src="https://github.com/user-attachments/assets/16b93176-21ad-4e89-85fb-e7a4752bb953" />
 
+
 Locked Chests
 <img width="780" height="435" alt="image" src="https://github.com/user-attachments/assets/1120b239-d1e1-4ca8-873b-849271db044e" />
 
 
-#Keyword Alerts
+Keyword Alerts
 <img width="769" height="324" alt="image" src="https://github.com/user-attachments/assets/828f63e9-8dcd-4b3e-b56e-02a12e2d1940" />
 
 
