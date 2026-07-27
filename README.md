@@ -28,9 +28,14 @@
 - Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
   
 ---
-# Screenshot
+# Screenshots
 
 <img width="780" height="435" alt="image" src="https://github.com/user-attachments/assets/1120b239-d1e1-4ca8-873b-849271db044e" />
+
+
+##Keywordalarms
+<img width="769" height="324" alt="image" src="https://github.com/user-attachments/assets/828f63e9-8dcd-4b3e-b56e-02a12e2d1940" />
+
 
 
 
