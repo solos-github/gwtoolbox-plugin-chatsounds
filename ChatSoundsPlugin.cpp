@@ -38,13 +38,23 @@ namespace {
         case GW::UI::UIMessage::kPrintChatMessage: {
             const auto packet =
                 static_cast<GW::UI::UIPacket::kPrintChatMessage*>(wparam);
-            plugin_instance->HandleChatPacket(packet->channel, packet->message);
+            plugin_instance->HandleChatPacket(
+                packet->channel,
+                packet->message);
             break;
         }
         case GW::UI::UIMessage::kPlayerChatMessage: {
             const auto packet =
                 static_cast<GW::UI::UIPacket::kPlayerChatMessage*>(wparam);
-            plugin_instance->HandleChatPacket(packet->channel, packet->message);
+            plugin_instance->HandleChatPacket(
+                packet->channel,
+                packet->message);
+            break;
+        }
+        case GW::UI::UIMessage::kRecvWhisper: {
+            const auto packet =
+                static_cast<GW::UI::UIPacket::kRecvWhisper*>(wparam);
+            plugin_instance->HandleIncomingWhisper(packet->message);
             break;
         }
         default:
@@ -313,6 +323,12 @@ void ChatSoundsPlugin::RegisterChatHooks()
         &chat_hook_,
         GW::UI::UIMessage::kPlayerChatMessage,
         OnChatUiMessage);
+
+    // This event is emitted only for a real incoming player whisper.
+    RegisterUIMessageCallback(
+        &chat_hook_,
+        GW::UI::UIMessage::kRecvWhisper,
+        OnChatUiMessage);
 }
 
 void ChatSoundsPlugin::RemoveChatHooks()
@@ -328,15 +344,16 @@ void ChatSoundsPlugin::HandleChatPacket(
         return;
     }
 
-    const std::wstring readable = ExtractReadableText(encoded_message);
-    if (readable.empty()) {
+    // Whisper-channel print packets are not reliable: map and system
+    // messages can use the same channel value. Real incoming whispers are
+    // handled exclusively through kRecvWhisper.
+    if (channel == static_cast<uint32_t>(
+            GW::Chat::Channel::CHANNEL_WHISPER)) {
         return;
     }
 
-    if (whisper_enabled_ &&
-        channel == static_cast<uint32_t>(
-            GW::Chat::Channel::CHANNEL_WHISPER)) {
-        PlayWav(whisper_wav_);
+    const std::wstring readable = ExtractReadableText(encoded_message);
+    if (readable.empty()) {
         return;
     }
 
@@ -344,6 +361,49 @@ void ChatSoundsPlugin::HandleChatPacket(
         if (!rule.enabled ||
             rule.keyword.empty() ||
             !ChannelMatches(rule.channel, channel)) {
+            continue;
+        }
+
+        if (ContainsKeyword(
+                readable,
+                rule.keyword,
+                rule.case_sensitive)) {
+            PlayWav(rule.wav_path);
+            return;
+        }
+    }
+}
+
+void ChatSoundsPlugin::HandleIncomingWhisper(
+    const wchar_t* encoded_message)
+{
+    if (!enabled_) {
+        return;
+    }
+
+    if (whisper_enabled_) {
+        PlayWav(whisper_wav_);
+        return;
+    }
+
+    // Whisper keyword rules remain available even when the general
+    // whisper notification is disabled.
+    if (!encoded_message || !*encoded_message) {
+        return;
+    }
+
+    const std::wstring readable =
+        ExtractReadableText(encoded_message);
+
+    if (readable.empty()) {
+        return;
+    }
+
+    for (const Rule& rule : rules_) {
+        if (!rule.enabled ||
+            rule.keyword.empty() ||
+            (rule.channel != ChannelFilter::Any &&
+             rule.channel != ChannelFilter::Whisper)) {
             continue;
         }
 
