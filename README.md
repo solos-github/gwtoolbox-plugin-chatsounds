@@ -102,7 +102,7 @@ Dort kannst du:
 - Whisper-Benachrichtigungen aktivieren
 - Schlagwort-Regeln erstellen
 - Chatkanäle auswählen
-- Eigene WAV-Dateien verwenden
+- Eigene WAV-Dateien verwenden (Ich habe unter #releases ein paar Beispiel WAV-files abgelegt)
 - Sounds testen
 - Den Sound zu verschlossenen Truhen hinterlegen
 - Den globalen Cooldown einstellen
