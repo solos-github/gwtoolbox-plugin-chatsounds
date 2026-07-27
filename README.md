@@ -29,8 +29,8 @@
 ---
 # Screenshots
 
-Whisper-Alarm 
-<img width="776" height="320" alt="image" src="https://github.com/user-attachments/assets/16b93176-21ad-4e89-85fb-e7a4752bb953" />
+Whisper
+<img width="776" title= "Whisper" height="320" alt="image" src="https://github.com/user-attachments/assets/16b93176-21ad-4e89-85fb-e7a4752bb953" />
 
 
 Locked Chests
