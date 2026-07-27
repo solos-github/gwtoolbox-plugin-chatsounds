@@ -452,6 +452,15 @@ void ChatSoundsPlugin::PlayWav(
         return;
     }
 
+    const DWORD channel_volume = static_cast<DWORD>(
+        (0xFFFFu * static_cast<unsigned int>(
+            std::clamp(sound_volume_percent_, 0, 100))) / 100u);
+
+    // Apply the configured level to both stereo channels before playback.
+    waveOutSetVolume(
+        nullptr,
+        MAKELONG(channel_volume, channel_volume));
+
     if (PlaySoundW(
             path.c_str(),
             nullptr,
@@ -501,283 +510,242 @@ void ChatSoundsPlugin::DrawSettings()
         return;
     }
 
-    ImGui::Checkbox("enable Plugin", &enabled_);
-    ImGui::Separator();
+    const ImVec4 gold(0.86f, 0.68f, 0.28f, 1.0f);
+    const ImVec4 green(0.30f, 0.80f, 0.42f, 1.0f);
+    const ImVec4 red(0.92f, 0.34f, 0.34f, 1.0f);
+    const ImVec4 muted(0.62f, 0.65f, 0.70f, 1.0f);
 
-    ImGui::TextUnformatted("Whisper-Alarm");
-    ImGui::Checkbox(
-        "Sound on incoming whisper",
-        &whisper_enabled_);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 4.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 7.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.28f, 0.38f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.40f, 0.55f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.24f, 0.35f, 0.48f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(0.30f, 0.62f, 0.92f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.30f, 0.62f, 0.92f, 1.0f));
 
-    const std::string whisper_path =
-        WideToUtf8(whisper_wav_.wstring());
-
-    ImGui::TextWrapped(
-        "%s",
-        whisper_path.empty()
-            ? "No WAV-File chosen."
-            : whisper_path.c_str());
-
-    if (ImGui::Button("Browser Whisper-WAV ...")) {
-        SelectWav(whisper_wav_);
-    }
-
+    ImGui::TextColored(gold, "CHAT SOUNDS");
     ImGui::SameLine();
-
-    if (ImGui::Button("Whisper test")) {
-        PlayWav(whisper_wav_);
-    }
-
+    ImGui::TextColored(muted, "for GWToolbox++");
     ImGui::Separator();
-    ImGui::TextUnformatted("Keyword Alert");
+    ImGui::Spacing();
+    ImGui::Checkbox("Enable Plugin", &enabled_);
 
-    if (ImGui::Button("+ Add Keyword Alert")) {
-        rules_.push_back({});
-    }
+    if (ImGui::BeginTabBar("ChatSoundsTabs")) {
+        if (ImGui::BeginTabItem("Whisper")) {
+            ImGui::TextColored(gold, "Whisper Alerts");
+            ImGui::Separator();
+            ImGui::Checkbox("Enable Whisper Sound", &whisper_enabled_);
 
-    if (rules_.empty()) {
-        ImGui::TextDisabled(
-            "No keyword alerts configured.");
-    }
+            const std::string whisper_path = WideToUtf8(whisper_wav_.wstring());
+            ImGui::TextColored(muted, "Selected sound");
+            ImGui::TextWrapped("%s", whisper_path.empty() ? "No WAV file selected." : whisper_path.c_str());
+            if (ImGui::Button("Browse...", ImVec2(120.0f, 0.0f))) SelectWav(whisper_wav_);
+            ImGui::SameLine();
+            if (ImGui::Button("Test Sound", ImVec2(120.0f, 0.0f))) PlayWav(whisper_wav_);
 
-    int remove_index = -1;
-
-    for (size_t i = 0; i < rules_.size(); ++i) {
-        Rule& rule = rules_[i];
-
-        ImGui::PushID(static_cast<int>(i));
-        ImGui::Separator();
-
-        ImGui::Checkbox("Enable", &rule.enabled);
-
-        int channel = static_cast<int>(rule.channel);
-        const char* channels[] = {
-            "All",
-            "Localchat",
-            "Guildchat",
-            "Alliancechat",
-            "Groupchat",
-            "Tradechat",
-            "Whisper"
-        };
-
-        ImGui::SetNextItemWidth(300.0f);
-        if (ImGui::Combo(
-                "Channel",
-                &channel,
-                channels,
-                IM_ARRAYSIZE(channels))) {
-            rule.channel =
-                static_cast<ChannelFilter>(channel);
+            ImGui::EndTabItem();
         }
 
-        std::array<char, 256> keyword{};
-        strncpy_s(
-            keyword.data(),
-            keyword.size(),
-            rule.keyword.c_str(),
-            _TRUNCATE);
+        if (ImGui::BeginTabItem("Keyword Alerts")) {
+            ImGui::TextColored(gold, "Keyword Rules");
+            ImGui::Separator();
+            ImGui::TextWrapped("Play a WAV file when a chat message contains a configured keyword.");
+            if (ImGui::Button("Add Keyword Rule", ImVec2(170.0f, 0.0f))) rules_.push_back({});
+            if (rules_.empty()) ImGui::TextColored(muted, "No keyword rules configured.");
 
-        ImGui::SetNextItemWidth(300.0f);
-        if (ImGui::InputText(
-                "Keyword",
-                keyword.data(),
-                keyword.size())) {
-            rule.keyword = keyword.data();
+            int remove_index = -1;
+            for (size_t i = 0; i < rules_.size(); ++i) {
+                Rule& rule = rules_[i];
+                ImGui::PushID(static_cast<int>(i));
+                const char* channels[] = {
+                    "All Channels",
+                    "Local Chat",
+                    "Guild Chat",
+                    "Alliance Chat",
+                    "Party Chat",
+                    "Trade Chat",
+                    "Whisper"
+                };
+
+                const int selected_channel = std::clamp(
+                    static_cast<int>(rule.channel),
+                    0,
+                    static_cast<int>(IM_ARRAYSIZE(channels)) - 1);
+
+                const std::string visible_header =
+                    "Rule " + std::to_string(i + 1) +
+                    " - " +
+                    (rule.keyword.empty() ? std::string("<New Rule>") : rule.keyword) +
+                    " [" + channels[selected_channel] + "]";
+
+                // The hidden ID remains stable while keyword or channel text changes.
+                const std::string header = visible_header +
+                    "###KeywordRule" + std::to_string(i);
+
+                if (ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Indent();
+                    ImGui::Checkbox("Enabled", &rule.enabled);
+                    int channel = selected_channel;
+                    ImGui::SetNextItemWidth(300.0f);
+                    if (ImGui::Combo("Channel", &channel, channels, IM_ARRAYSIZE(channels)))
+                        rule.channel = static_cast<ChannelFilter>(channel);
+
+                    std::array<char, 256> keyword{};
+                    strncpy_s(keyword.data(), keyword.size(), rule.keyword.c_str(), _TRUNCATE);
+                    ImGui::SetNextItemWidth(300.0f);
+                    if (ImGui::InputText("Keyword", keyword.data(), keyword.size())) rule.keyword = keyword.data();
+                    ImGui::Checkbox("Case Sensitive", &rule.case_sensitive);
+
+                    const std::string wav_path = WideToUtf8(rule.wav_path.wstring());
+                    ImGui::TextColored(muted, "Selected sound");
+                    ImGui::TextWrapped("%s", wav_path.empty() ? "No WAV file selected." : wav_path.c_str());
+                    if (ImGui::Button("Browse...", ImVec2(120.0f, 0.0f))) SelectWav(rule.wav_path);
+                    ImGui::SameLine();
+                    if (ImGui::Button("Test Sound", ImVec2(120.0f, 0.0f))) PlayWav(rule.wav_path);
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.48f, 0.19f, 0.19f, 1.0f));
+                    if (ImGui::Button("Remove", ImVec2(100.0f, 0.0f))) remove_index = static_cast<int>(i);
+                    ImGui::PopStyleColor();
+                    ImGui::Unindent();
+                }
+                ImGui::PopID();
+            }
+            if (remove_index >= 0 && remove_index < static_cast<int>(rules_.size()))
+                rules_.erase(rules_.begin() + remove_index);
+            ImGui::EndTabItem();
         }
 
-        ImGui::Checkbox(
-            "case sensitive",
-            &rule.case_sensitive);
+        if (ImGui::BeginTabItem("Locked Chests")) {
+            ImGui::TextColored(gold, "Locked Chest Detection");
+            ImGui::Separator();
+            ImGui::Checkbox("Enable Locked Chest Sound", &nearby_gadget_alert_enabled_);
+            ImGui::TextWrapped("Detects unopened locked chests with Gadget ID 8141 and plays the selected sound once while a chest remains nearby.");
 
-        const std::string wav_path =
-            WideToUtf8(rule.wav_path.wstring());
+            const std::string nearby_path = WideToUtf8(nearby_gadget_wav_.wstring());
+            ImGui::TextColored(muted, "Selected sound");
+            ImGui::TextWrapped("%s", nearby_path.empty() ? "No chest sound selected." : nearby_path.c_str());
+            if (ImGui::Button("Browse...", ImVec2(120.0f, 0.0f))) SelectWav(nearby_gadget_wav_);
+            ImGui::SameLine();
+            if (ImGui::Button("Test Sound", ImVec2(120.0f, 0.0f))) PlayWav(nearby_gadget_wav_);
 
-        ImGui::TextWrapped(
-            "%s",
-            wav_path.empty()
-                ? "No file chosen."
-                : wav_path.c_str());
-
-        if (ImGui::Button("Choose wav-file ...")) {
-            SelectWav(rule.wav_path);
+            ImGui::Spacing();
+            ImGui::TextColored(gold, "Detection Settings");
+            ImGui::Separator();
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::SliderFloat("Detection Range", &nearby_gadget_range_, 100.0f, 10000.0f, "%.0f units");
+            nearby_gadget_range_ = std::clamp(nearby_gadget_range_, 100.0f, 10000.0f);
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::SliderInt("Scan Interval", &nearby_scan_interval_ms_, 100, 5000, "%d ms");
+            nearby_scan_interval_ms_ = std::clamp(nearby_scan_interval_ms_, 100, 5000);
+            ImGui::EndTabItem();
         }
 
-        ImGui::SameLine();
+        if (ImGui::BeginTabItem("Settings")) {
+            ImGui::TextColored(gold, "Global Audio");
+            ImGui::Separator();
 
-        if (ImGui::Button("Test")) {
-            PlayWav(rule.wav_path);
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::SliderInt(
+                "Sound Volume",
+                &sound_volume_percent_,
+                0,
+                100,
+                "%d%%");
+            sound_volume_percent_ =
+                std::clamp(sound_volume_percent_, 0, 100);
+            ImGui::TextColored(
+                muted,
+                "Applied when the plugin starts a WAV sound.");
+
+            ImGui::Spacing();
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::SliderInt(
+                "Global Sound Cooldown",
+                &cooldown_ms_,
+                0,
+                10000,
+                "%d ms");
+            cooldown_ms_ = std::clamp(cooldown_ms_, 0, 60000);
+            ImGui::TextColored(
+                muted,
+                "Minimum delay between two plugin sounds.");
+
+            ImGui::Spacing();
+            if (ImGui::Button(
+                    "Stop Current Sound",
+                    ImVec2(180.0f, 0.0f))) {
+                PlaySoundW(nullptr, nullptr, 0);
+            }
+
+            ImGui::EndTabItem();
         }
 
-        ImGui::SameLine();
+        if (ImGui::BeginTabItem("Debug")) {
+            ImGui::TextColored(gold, "Runtime Status");
+            ImGui::Separator();
+            ImGui::TextColored(scan_has_player_ ? green : red, "%s Player available", scan_has_player_ ? "[OK]" : "[!] ");
+            ImGui::TextColored(scan_has_agent_array_ ? green : red, "%s Agent array available", scan_has_agent_array_ ? "[OK]" : "[!] ");
+            ImGui::Text("Agents scanned: %zu", scanned_agent_count_);
+            ImGui::Text("Agents within range: %zu", nearby_agent_debug_.size());
 
-        if (ImGui::Button("Remove Rule")) {
-            remove_index = static_cast<int>(i);
+            ImGui::Spacing();
+            ImGui::TextColored(gold, "Current Target");
+            ImGui::Separator();
+            ImGui::Text("Expected Gadget ID: %u", LockedChestGadgetId);
+            ImGui::Text("Agent ID: %u", target_agent_id_);
+            ImGui::Text("Type: 0x%X", target_type_);
+            ImGui::Text("Gadget ID: %u", target_gadget_id_);
+            ImGui::Text("Extra Type: %u", target_extra_type_);
+            ImGui::TextColored(target_is_locked_chest_ ? green : muted, "Locked chest detected: %s", target_is_locked_chest_ ? "yes" : "no");
+
+            ImGui::Spacing();
+            ImGui::TextColored(gold, "Nearby Agents");
+            ImGui::Separator();
+            if (ImGui::BeginTable("NearbyAgentDebugTable", 10,
+                    ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
+                    ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable, ImVec2(0.0f, 330.0f))) {
+                ImGui::TableSetupScrollFreeze(0, 1);
+                ImGui::TableSetupColumn("Target");
+                ImGui::TableSetupColumn("Agent ID");
+                ImGui::TableSetupColumn("Type");
+                ImGui::TableSetupColumn("Gadget");
+                ImGui::TableSetupColumn("Item");
+                ImGui::TableSetupColumn("Living");
+                ImGui::TableSetupColumn("Gadget ID");
+                ImGui::TableSetupColumn("Extra Type");
+                ImGui::TableSetupColumn("Distance");
+                ImGui::TableSetupColumn("8141");
+                ImGui::TableHeadersRow();
+
+                for (const NearbyAgentDebug& entry : nearby_agent_debug_) {
+                    ImGui::TableNextRow();
+                    if (entry.matches_locked_chest_id)
+                        ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImVec4(0.18f, 0.42f, 0.22f, 0.55f)));
+                    else if (entry.is_target)
+                        ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImVec4(0.20f, 0.35f, 0.55f, 0.50f)));
+
+                    ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted(entry.is_target ? "yes" : "");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", entry.agent_id);
+                    ImGui::TableSetColumnIndex(2); ImGui::Text("0x%X", entry.type);
+                    ImGui::TableSetColumnIndex(3); ImGui::TextUnformatted(entry.is_gadget ? "yes" : "no");
+                    ImGui::TableSetColumnIndex(4); ImGui::TextUnformatted(entry.is_item ? "yes" : "no");
+                    ImGui::TableSetColumnIndex(5); ImGui::TextUnformatted(entry.is_living ? "yes" : "no");
+                    ImGui::TableSetColumnIndex(6); ImGui::Text("%u", entry.gadget_id);
+                    ImGui::TableSetColumnIndex(7); ImGui::Text("%u", entry.extra_type);
+                    ImGui::TableSetColumnIndex(8); ImGui::Text("%.0f", entry.distance);
+                    ImGui::TableSetColumnIndex(9);
+                    if (entry.matches_locked_chest_id) ImGui::TextColored(green, "yes");
+                }
+                ImGui::EndTable();
+            }
+            ImGui::EndTabItem();
         }
-
-        ImGui::PopID();
+        ImGui::EndTabBar();
     }
 
-    if (remove_index >= 0 &&
-        remove_index < static_cast<int>(rules_.size())) {
-        rules_.erase(rules_.begin() + remove_index);
-    }
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Locked Chest Sounds");
-
-    ImGui::Checkbox(
-        "Sound on locked chest nearby",
-        &nearby_gadget_alert_enabled_);
-
-    ImGui::TextWrapped(
-        "Will only work with Locked Chest "
-        "A Sound is played when in Range and not opened");
-
-    const std::string nearby_path =
-        WideToUtf8(nearby_gadget_wav_.wstring());
-
-    ImGui::TextWrapped(
-        "%s",
-        nearby_path.empty()
-            ? "No Chest Sound chosen."
-            : nearby_path.c_str());
-
-    if (ImGui::Button("Choose Chest Sound...")) {
-        SelectWav(nearby_gadget_wav_);
-    }
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("Check Chest Sound")) {
-        PlayWav(nearby_gadget_wav_);
-    }
-
-    ImGui::SetNextItemWidth(180.0f);
-    ImGui::InputFloat(
-        "Detection Range",
-        &nearby_gadget_range_,
-        100.0f,
-        500.0f,
-        "%.0f");
-    nearby_gadget_range_ =
-        std::clamp(nearby_gadget_range_, 100.0f, 10000.0f);
-
-    ImGui::SetNextItemWidth(180.0f);
-    ImGui::InputInt(
-        "Scan Interval (ms)",
-        &nearby_scan_interval_ms_);
-    nearby_scan_interval_ms_ =
-        std::clamp(nearby_scan_interval_ms_, 100, 5000);
-
-    ImGui::Separator();
-
-    ImGui::SetNextItemWidth(160.0f);
-    ImGui::InputInt(
-        "Global Sound Cooldown (ms)",
-        &cooldown_ms_);
-
-    cooldown_ms_ =
-        std::clamp(cooldown_ms_, 0, 60000);
-
-    if (ImGui::Button("Stop Current Sound")) {
-        PlaySoundW(nullptr, nullptr, 0);
-    }
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Scan Status");
-    ImGui::Text(
-        "Update Scan: Player %s | AgentArray %s",
-        scan_has_player_ ? "available" : "missing",
-        scan_has_agent_array_ ? "available" : "missing");
-    ImGui::Text(
-        "Agents scanned: %zu",
-        scanned_agent_count_);
-    ImGui::Text(
-        "Agents within range: %zu",
-        nearby_agent_debug_.size());
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Current Target (Standalone Test)");
-    ImGui::Text("Expected Gadget ID: %u", LockedChestGadgetId);
-    ImGui::Text("Agent ID: %u", target_agent_id_);
-    ImGui::Text("Type: 0x%X", target_type_);
-    ImGui::Text(
-        "GetIsGadgetType: %s",
-        target_is_gadget_ ? "ja" : "nein");
-    ImGui::Text("Gadget ID: %u", target_gadget_id_);
-    ImGui::Text("Extra Type: %u", target_extra_type_);
-    ImGui::Text(
-        "Detected ID 8141: %s",
-        target_is_locked_chest_ ? "JA" : "nein");
-    ImGui::Text(
-        "Already opened / not targetable: %s",
-        target_is_opened_locked_chest_ ? "ja" : "nein");
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("All Agents within range");
-    ImGui::TextWrapped(
-        "Shows all agents within range. "
-	"Useful to verify that the chest exists in the regular AgentArray.");
-
-    if (ImGui::BeginTable(
-            "NearbyAgentDebugTable",
-            10,
-            ImGuiTableFlags_Borders |
-            ImGuiTableFlags_RowBg |
-            ImGuiTableFlags_ScrollY,
-            ImVec2(0.0f, 300.0f))) {
-        ImGui::TableSetupColumn("Target");
-        ImGui::TableSetupColumn("Agent-ID");
-        ImGui::TableSetupColumn("Type");
-        ImGui::TableSetupColumn("Gadget");
-        ImGui::TableSetupColumn("Item");
-        ImGui::TableSetupColumn("Living");
-        ImGui::TableSetupColumn("Gadget-ID");
-        ImGui::TableSetupColumn("Extra-Type");
-        ImGui::TableSetupColumn("Distance");
-        ImGui::TableSetupColumn("8141");
-        ImGui::TableHeadersRow();
-
-        for (const NearbyAgentDebug& entry :
-             nearby_agent_debug_) {
-            ImGui::TableNextRow();
-
-            ImGui::TableSetColumnIndex(0);
-            ImGui::TextUnformatted(entry.is_target ? "yes" : "");
-
-            ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%u", entry.agent_id);
-
-            ImGui::TableSetColumnIndex(2);
-            ImGui::Text("0x%X", entry.type);
-
-            ImGui::TableSetColumnIndex(3);
-            ImGui::TextUnformatted(entry.is_gadget ? "yes" : "no");
-
-            ImGui::TableSetColumnIndex(4);
-            ImGui::TextUnformatted(entry.is_item ? "yes" : "no");
-
-            ImGui::TableSetColumnIndex(5);
-            ImGui::TextUnformatted(entry.is_living ? "yes" : "no");
-
-            ImGui::TableSetColumnIndex(6);
-            ImGui::Text("%u", entry.gadget_id);
-
-            ImGui::TableSetColumnIndex(7);
-            ImGui::Text("%u", entry.extra_type);
-
-            ImGui::TableSetColumnIndex(8);
-            ImGui::Text("%.0f", entry.distance);
-
-            ImGui::TableSetColumnIndex(9);
-            ImGui::TextUnformatted(
-                entry.matches_locked_chest_id ? "yes" : "");
-        }
-
-        ImGui::EndTable();
-    }
-
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(3);
 }
 
 void ChatSoundsPlugin::LoadSettings(
@@ -788,6 +756,8 @@ void ChatSoundsPlugin::LoadSettings(
     LoadSetting("enabled", enabled_);
     LoadSetting("whisper_enabled", whisper_enabled_);
     LoadSetting("cooldown_ms", cooldown_ms_);
+    LoadSetting("sound_volume_percent", sound_volume_percent_);
+    sound_volume_percent_ = std::clamp(sound_volume_percent_, 0, 100);
     LoadSetting("nearby_gadget_alert_enabled", nearby_gadget_alert_enabled_);
     LoadSetting("nearby_gadget_range", nearby_gadget_range_);
     LoadSetting("nearby_scan_interval_ms", nearby_scan_interval_ms_);
@@ -850,6 +820,7 @@ void ChatSoundsPlugin::SaveSettings(
         "whisper_enabled",
         whisper_enabled_);
     SaveSetting("cooldown_ms", cooldown_ms_);
+    SaveSetting("sound_volume_percent", sound_volume_percent_);
     SaveSetting("nearby_gadget_alert_enabled", nearby_gadget_alert_enabled_);
     SaveSetting("nearby_gadget_range", nearby_gadget_range_);
     SaveSetting("nearby_scan_interval_ms", nearby_scan_interval_ms_);
