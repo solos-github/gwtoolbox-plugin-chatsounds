@@ -28,6 +28,12 @@
 - Gute Quelle für wav-files ohne sich registrieren zu müssen 'https://mixkit.co/'
   
 ---
+# Short Clip showing alert and chest sound
+
+
+
+
+---
 # Screenshots
 
 ## Whisper
