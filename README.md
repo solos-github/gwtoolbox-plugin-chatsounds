@@ -29,7 +29,10 @@
   
 ---
 # Short Clip showing alert and chest sound
-<video src='https://github.com/solos-github/gwtoolbox-plugin-chatsounds/blob/main/chatsound.mp4' width=180/>
+<video width="720" controls>
+  <source src="https://raw.githubusercontent.com/solos-github/gwtoolbox-plugin-chatsounds/main/chatsound.mp4" type="video/mp4">
+  Dein Browser unterstützt das Video-Tag nicht.
+</video>
 
 
 ---
