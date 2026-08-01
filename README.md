@@ -30,7 +30,7 @@
 ---
 # Short Clip showing alert and chest sound
 
-
+[Demo-Video ansehen](https://github.com/solos-github/gwtoolbox-plugin-chatsounds/blob/main/chatsound.mp4)
 
 
 ---
