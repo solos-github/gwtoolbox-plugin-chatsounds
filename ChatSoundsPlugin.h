@@ -3,6 +3,8 @@
 #include <ToolboxUIPlugin.h>
 
 #include <GWCA/Utilities/Hook.h>
+#include <GWCA/GameEntities/Agent.h>
+#include <GWCA/GameEntities/Item.h>
 
 #include <chrono>
 #include <filesystem>
@@ -24,6 +26,29 @@ public:
         Party,
         Trade,
         Whisper
+    };
+
+    enum class DropMatchMode : int {
+        NameContains = 0,
+        ExactName,
+        ModelId
+    };
+
+    struct DropRule {
+        bool enabled = true;
+        std::string rule_name;
+        DropMatchMode match_mode = DropMatchMode::NameContains;
+        std::string name;
+        uint32_t model_id = 0;
+        std::filesystem::path wav_path;
+        bool case_sensitive = false;
+
+        // AgentItem::owner contains the runtime agent ID that currently owns
+        // the ground drop. owner == player_agent_id is treated as my drop.
+        // Every other owner value, including 0, is treated as another
+        // player's/unassigned drop.
+        bool only_my_drops = true;
+        bool include_other_players_drops = false;
     };
 
     struct Rule {
@@ -59,6 +84,15 @@ public:
 
 private:
     void ScanNearbyObjects();
+    void ScanNearbyDrops(
+        const GW::AgentLiving* player,
+        const GW::AgentArray* agents);
+    bool DropRuleMatches(
+        const DropRule& rule,
+        const GW::Item* item,
+        const GW::AgentItem* item_agent,
+        uint32_t player_agent_id) const;
+    static std::wstring GetDropName(const GW::Item* item);
     void RegisterChatHooks();
     void RemoveChatHooks();
 
@@ -79,6 +113,10 @@ private:
     bool whisper_enabled_ = true;
     std::filesystem::path whisper_wav_;
     std::vector<Rule> rules_;
+    bool drop_alerts_enabled_ = true;
+    float drop_detection_range_ = 5000.0f;
+    std::vector<DropRule> drop_rules_;
+    std::unordered_set<uint32_t> announced_drop_agents_;
     bool nearby_gadget_alert_enabled_ = false;
     std::filesystem::path nearby_gadget_wav_;
     float nearby_gadget_range_ = 5000.0f;
