@@ -2,8 +2,8 @@
 
 > Ein leichtgewichtiges Plugin für GWToolbox++, das benutzerdefinierte Benachrichtigungstöne für Whisper und frei definierbare Chat-Schlagwörter abspielt
 > Es kann auch Sounds bei "entdeckten" Truhen abspielen
+<img width="1848" height="559" alt="image" src="https://github.com/user-attachments/assets/1293c657-8f0a-4455-8f52-4e865bcc33f3" />
 
-<img width="1789" height="480" alt="image" src="https://github.com/user-attachments/assets/654f19da-574a-4f4b-a093-bbe622898c2d" />
 
 ---
 
