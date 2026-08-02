@@ -12,11 +12,13 @@
 #include <vector>
 #include <unordered_set>
 
+struct IDirect3DTexture9;
+
 struct IGraphBuilder;
 struct IMediaControl;
 struct IBasicAudio;
 
-class ChatSoundsPlugin final : public ToolboxPlugin {
+class ChatSoundsPlugin final : public ToolboxUIPlugin {
 public:
     enum class ChannelFilter : int {
         Any = 0,
@@ -32,6 +34,15 @@ public:
         NameContains = 0,
         ExactName,
         ModelId
+    };
+
+    enum class UiSection : int {
+        Whisper = 0,
+        Keywords,
+        ItemDrops,
+        LockedChests,
+        Settings,
+        Debug
     };
 
     struct DropRule {
@@ -98,6 +109,15 @@ private:
 
     void PlayWav(const std::filesystem::path& path);
     void StopSound();
+    bool LoadEmbeddedTexture(
+        IDirect3DDevice9* device,
+        const unsigned char* data,
+        size_t data_size,
+        IDirect3DTexture9** texture,
+        int* width,
+        int* height);
+    void LoadUiTextures(IDirect3DDevice9* device);
+    void ReleaseUiTextures();
     bool SelectWav(std::filesystem::path& target);
     bool CooldownElapsed() const;
 
@@ -130,6 +150,24 @@ private:
     IMediaControl* audio_control_ = nullptr;
     IBasicAudio* basic_audio_ = nullptr;
     bool com_initialized_by_plugin_ = false;
+
+    IDirect3DTexture9* banner_texture_ = nullptr;
+    IDirect3DTexture9* whisper_icon_texture_ = nullptr;
+    IDirect3DTexture9* keywords_icon_texture_ = nullptr;
+    IDirect3DTexture9* drops_icon_texture_ = nullptr;
+    IDirect3DTexture9* chests_icon_texture_ = nullptr;
+    IDirect3DTexture9* settings_icon_texture_ = nullptr;
+    int banner_width_ = 0;
+    int banner_height_ = 0;
+    bool ui_textures_loaded_ = false;
+    UiSection selected_section_ = UiSection::Whisper;
+    IDirect3DDevice9* d3d_device_ = nullptr;
+    bool banner_texture_failed_ = false;
+    bool whisper_icon_failed_ = false;
+    bool keywords_icon_failed_ = false;
+    bool drops_icon_failed_ = false;
+    bool chests_icon_failed_ = false;
+    bool settings_icon_failed_ = false;
     std::chrono::steady_clock::time_point last_sound_{};
     struct NearbyAgentDebug {
         uint32_t agent_id = 0;

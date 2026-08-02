@@ -1,4 +1,5 @@
 #include "ChatSoundsPlugin.h"
+#include "ChatSoundsAssets.h"
 
 #include <GWCA/Managers/ChatMgr.h>
 #include <GWCA/Managers/AgentMgr.h>
@@ -11,6 +12,7 @@
 #include <Windows.h>
 #include <commdlg.h>
 #include <dshow.h>
+#include <wincodec.h>
 
 #include <algorithm>
 #include <cmath>
@@ -21,6 +23,7 @@
 
 #pragma comment(lib, "strmiids.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "windowscodecs.lib")
 #pragma comment(lib, "comdlg32.lib")
 
 namespace {
@@ -73,6 +76,10 @@ namespace {
     }
 
     constexpr uint32_t LockedChestGadgetId = 8141;
+    constexpr const char* PluginVersion = "1.6.0";
+    constexpr const char* PluginDescription =
+        "Custom sound alerts for whispers, keywords, item drops, "
+        "and locked chests in Guild Wars.";
 
     bool IsLockedChest(const GW::Agent* agent)
     {
@@ -107,7 +114,13 @@ void ChatSoundsPlugin::Initialize(
     const ImGuiAllocFns allocator_fns,
     const HMODULE toolbox_dll)
 {
-    ToolboxPlugin::Initialize(ctx, allocator_fns, toolbox_dll);
+    ToolboxUIPlugin::Initialize(ctx, allocator_fns, toolbox_dll);
+
+    // The plugin uses the UI lifecycle only to obtain the D3D9 device.
+    // The visible configuration UI remains in the Toolbox settings.
+    can_close = false;
+    can_show_in_main_window = false;
+    show_menubutton = false;
 
     const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     com_initialized_by_plugin_ = SUCCEEDED(com_result);
@@ -122,9 +135,18 @@ void ChatSoundsPlugin::Update(float)
     ScanNearbyObjects();
 }
 
-void ChatSoundsPlugin::Draw(IDirect3DDevice9*)
+void ChatSoundsPlugin::Draw(IDirect3DDevice9* device)
 {
-    // Background logic intentionally runs in Update().
+    // Inheriting from ToolboxUIPlugin ensures this callback participates
+    // in the Toolbox UI rendering lifecycle and receives the D3D9 device.
+    // No separate plugin window is drawn here; the actual interface remains
+    // in DrawSettings().
+    if (!device) {
+        return;
+    }
+
+    d3d_device_ = device;
+    LoadUiTextures(device);
 }
 
 void ChatSoundsPlugin::ScanNearbyObjects()
@@ -457,6 +479,7 @@ void ChatSoundsPlugin::SignalTerminate()
 {
     RemoveChatHooks();
     StopSound();
+    ReleaseUiTextures();
 
     if (com_initialized_by_plugin_) {
         CoUninitialize();
@@ -464,7 +487,7 @@ void ChatSoundsPlugin::SignalTerminate()
     }
 
     plugin_instance = nullptr;
-    ToolboxPlugin::SignalTerminate();
+    ToolboxUIPlugin::SignalTerminate();
 }
 
 void ChatSoundsPlugin::RegisterChatHooks()
@@ -668,6 +691,155 @@ bool ChatSoundsPlugin::CooldownElapsed() const
     return elapsed.count() >= cooldown_ms_;
 }
 
+bool ChatSoundsPlugin::LoadEmbeddedTexture(
+    IDirect3DDevice9* device,
+    const unsigned char* data,
+    const size_t data_size,
+    IDirect3DTexture9** texture,
+    int* width,
+    int* height)
+{
+    if (!device || !data || data_size == 0 || !texture) return false;
+    IWICImagingFactory* factory = nullptr;
+    IWICStream* stream = nullptr;
+    IWICBitmapDecoder* decoder = nullptr;
+    IWICBitmapFrameDecode* frame = nullptr;
+    IWICFormatConverter* converter = nullptr;
+    HRESULT result = CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));
+    if (FAILED(result)) return false;
+    result = factory->CreateStream(&stream);
+    if (SUCCEEDED(result)) result = stream->InitializeFromMemory(const_cast<BYTE*>(reinterpret_cast<const BYTE*>(data)),static_cast<DWORD>(data_size));
+    if (SUCCEEDED(result)) result = factory->CreateDecoderFromStream(stream,nullptr,WICDecodeMetadataCacheOnLoad,&decoder);
+    if (SUCCEEDED(result)) result = decoder->GetFrame(0,&frame);
+    UINT image_width=0,image_height=0;
+    if (SUCCEEDED(result)) result = frame->GetSize(&image_width,&image_height);
+    if (SUCCEEDED(result)) result = factory->CreateFormatConverter(&converter);
+    if (SUCCEEDED(result)) result = converter->Initialize(frame,GUID_WICPixelFormat32bppBGRA,WICBitmapDitherTypeNone,nullptr,0.0,WICBitmapPaletteTypeCustom);
+    IDirect3DTexture9* created_texture=nullptr;
+    if (SUCCEEDED(result)) result = device->CreateTexture(image_width,image_height,1,0,D3DFMT_A8R8G8B8,D3DPOOL_MANAGED,&created_texture,nullptr);
+    if (SUCCEEDED(result)) {
+        D3DLOCKED_RECT locked{};
+        result = created_texture->LockRect(0,&locked,nullptr,0);
+        if (SUCCEEDED(result)) {
+            const UINT stride=image_width*4;
+            std::vector<BYTE> pixels(static_cast<size_t>(stride)*image_height);
+            result = converter->CopyPixels(nullptr,stride,static_cast<UINT>(pixels.size()),pixels.data());
+            if (SUCCEEDED(result)) for (UINT y=0;y<image_height;++y) memcpy(static_cast<BYTE*>(locked.pBits)+static_cast<size_t>(y)*locked.Pitch,pixels.data()+static_cast<size_t>(y)*stride,stride);
+            created_texture->UnlockRect(0);
+        }
+    }
+    if (converter) converter->Release();
+    if (frame) frame->Release();
+    if (decoder) decoder->Release();
+    if (stream) stream->Release();
+    if (factory) factory->Release();
+    if (FAILED(result)) { if (created_texture) created_texture->Release(); return false; }
+    *texture=created_texture;
+    if (width) *width=static_cast<int>(image_width);
+    if (height) *height=static_cast<int>(image_height);
+    return true;
+}
+
+void ChatSoundsPlugin::LoadUiTextures(IDirect3DDevice9* device)
+{
+    if (!device) {
+        return;
+    }
+
+    d3d_device_ = device;
+
+    // Load every image independently. One broken icon must not remove
+    // an otherwise valid banner or the remaining icons.
+    if (!banner_texture_) {
+        banner_texture_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::banner_png,
+            ChatSoundsAssets::banner_png_size,
+            &banner_texture_,
+            &banner_width_,
+            &banner_height_);
+    }
+
+    if (!whisper_icon_texture_) {
+        whisper_icon_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::whisper_png,
+            ChatSoundsAssets::whisper_png_size,
+            &whisper_icon_texture_,
+            nullptr,
+            nullptr);
+    }
+
+    if (!keywords_icon_texture_) {
+        keywords_icon_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::keywords_png,
+            ChatSoundsAssets::keywords_png_size,
+            &keywords_icon_texture_,
+            nullptr,
+            nullptr);
+    }
+
+    if (!drops_icon_texture_) {
+        drops_icon_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::drops_png,
+            ChatSoundsAssets::drops_png_size,
+            &drops_icon_texture_,
+            nullptr,
+            nullptr);
+    }
+
+    if (!chests_icon_texture_) {
+        chests_icon_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::chests_png,
+            ChatSoundsAssets::chests_png_size,
+            &chests_icon_texture_,
+            nullptr,
+            nullptr);
+    }
+
+    if (!settings_icon_texture_) {
+        settings_icon_failed_ = !LoadEmbeddedTexture(
+            device,
+            ChatSoundsAssets::settings_png,
+            ChatSoundsAssets::settings_png_size,
+            &settings_icon_texture_,
+            nullptr,
+            nullptr);
+    }
+
+    ui_textures_loaded_ =
+        banner_texture_ ||
+        whisper_icon_texture_ ||
+        keywords_icon_texture_ ||
+        drops_icon_texture_ ||
+        chests_icon_texture_ ||
+        settings_icon_texture_;
+}
+
+void ChatSoundsPlugin::ReleaseUiTextures()
+{
+    const auto release_texture=[](IDirect3DTexture9*& texture){ if (texture) { texture->Release(); texture=nullptr; } };
+    release_texture(banner_texture_);
+    release_texture(whisper_icon_texture_);
+    release_texture(keywords_icon_texture_);
+    release_texture(drops_icon_texture_);
+    release_texture(chests_icon_texture_);
+    release_texture(settings_icon_texture_);
+    banner_width_ = 0;
+    banner_height_ = 0;
+    ui_textures_loaded_ = false;
+    d3d_device_ = nullptr;
+    banner_texture_failed_ = false;
+    whisper_icon_failed_ = false;
+    keywords_icon_failed_ = false;
+    drops_icon_failed_ = false;
+    chests_icon_failed_ = false;
+    settings_icon_failed_ = false;
+}
+
 void ChatSoundsPlugin::StopSound()
 {
     if (audio_control_) {
@@ -811,6 +983,19 @@ void ChatSoundsPlugin::DrawSettings()
         return;
     }
 
+    // Draw() may run before or after the settings panel is opened,
+    // depending on the plugin lifecycle. Retry here using the last valid
+    // Direct3D device instead of relying on a single load attempt.
+    if (d3d_device_ &&
+        (!banner_texture_ ||
+         !whisper_icon_texture_ ||
+         !keywords_icon_texture_ ||
+         !drops_icon_texture_ ||
+         !chests_icon_texture_ ||
+         !settings_icon_texture_)) {
+        LoadUiTextures(d3d_device_);
+    }
+
     const ImVec4 gold(0.86f, 0.68f, 0.28f, 1.0f);
     const ImVec4 green(0.30f, 0.80f, 0.42f, 1.0f);
     const ImVec4 red(0.92f, 0.34f, 0.34f, 1.0f);
@@ -825,15 +1010,367 @@ void ChatSoundsPlugin::DrawSettings()
     ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(0.30f, 0.62f, 0.92f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.30f, 0.62f, 0.92f, 1.0f));
 
-    ImGui::TextColored(gold, "CHAT SOUNDS");
-    ImGui::SameLine();
-    ImGui::TextColored(muted, "for GWToolbox++");
+    const float header_height = 190.0f;
+    const float header_width =
+        ImGui::GetContentRegionAvail().x;
+
+    if (ImGui::BeginChild(
+            "UnifiedPluginHeader",
+            ImVec2(header_width, header_height),
+            true,
+            ImGuiWindowFlags_NoScrollbar |
+            ImGuiWindowFlags_NoScrollWithMouse)) {
+        const float inner_width =
+            ImGui::GetContentRegionAvail().x;
+        const float inner_height =
+            ImGui::GetContentRegionAvail().y;
+
+        const float banner_width =
+            std::clamp(
+                inner_width * 0.54f,
+                260.0f,
+                760.0f);
+
+        if (banner_texture_ &&
+            banner_width_ > 0 &&
+            banner_height_ > 0) {
+            const float scale = std::min(
+                banner_width /
+                    static_cast<float>(banner_width_),
+                inner_height /
+                    static_cast<float>(banner_height_));
+
+            const ImVec2 image_size(
+                static_cast<float>(banner_width_) * scale,
+                static_cast<float>(banner_height_) * scale);
+
+            const float vertical_offset =
+                std::max(
+                    0.0f,
+                    (inner_height - image_size.y) * 0.5f);
+
+            ImGui::SetCursorPosY(
+                ImGui::GetCursorPosY() +
+                vertical_offset);
+
+            ImGui::Image(
+                banner_texture_,
+                image_size);
+        }
+        else {
+            ImGui::BeginChild(
+                "BannerFallback",
+                ImVec2(banner_width, inner_height),
+                false);
+
+            ImGui::SetCursorPosY(
+                std::max(
+                    0.0f,
+                    (inner_height -
+                     ImGui::GetTextLineHeight() * 2.0f) *
+                    0.5f));
+
+            ImGui::TextColored(
+                gold,
+                "CHAT SOUNDS");
+            ImGui::TextColored(
+                muted,
+                "Embedded banner unavailable");
+
+            ImGui::EndChild();
+        }
+
+        ImGui::SameLine();
+
+        ImGui::BeginGroup();
+
+        const float info_width =
+            std::max(
+                220.0f,
+                inner_width -
+                banner_width -
+                ImGui::GetStyle().ItemSpacing.x);
+
+        if (ImGui::BeginChild(
+                "UnifiedPluginInfo",
+                ImVec2(info_width, inner_height),
+                false,
+                ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoScrollWithMouse)) {
+            ImGui::TextColored(
+                gold,
+                "ChatSounds Plugin");
+
+            ImGui::SameLine();
+
+            ImGui::TextColored(
+                muted,
+                "v%s",
+                PluginVersion);
+
+            ImGui::Separator();
+
+            ImGui::TextWrapped(
+                "%s",
+                PluginDescription);
+
+            ImGui::Spacing();
+
+            if (ImGui::BeginTable(
+                    "PluginHeaderStats",
+                    2,
+                    ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableSetupColumn(
+                    "Label",
+                    ImGuiTableColumnFlags_WidthStretch,
+                    0.60f);
+                ImGui::TableSetupColumn(
+                    "Value",
+                    ImGuiTableColumnFlags_WidthStretch,
+                    0.40f);
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted(
+                    "Keyword rules");
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text(
+                    "%zu",
+                    rules_.size());
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted(
+                    "Drop rules");
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text(
+                    "%zu",
+                    drop_rules_.size());
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted(
+                    "Whisper alerts");
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextColored(
+                    whisper_enabled_ ? green : muted,
+                    "%s",
+                    whisper_enabled_ ? "Enabled" : "Disabled");
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted(
+                    "Locked chest alerts");
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextColored(
+                    nearby_gadget_alert_enabled_
+                        ? green
+                        : muted,
+                    "%s",
+                    nearby_gadget_alert_enabled_
+                        ? "Enabled"
+                        : "Disabled");
+
+                ImGui::EndTable();
+            }
+
+            ImGui::Spacing();
+
+            ImGui::TextColored(
+                enabled_ ? green : red,
+                "%s",
+                enabled_
+                    ? "Plugin enabled"
+                    : "Plugin disabled");
+        }
+        ImGui::EndChild();
+
+        ImGui::EndGroup();
+    }
+    ImGui::EndChild();
+
+    ImGui::Spacing();
+
+    ImGui::Checkbox(
+        "Enable Plugin",
+        &enabled_);
+
+    ImGui::Spacing();
+
+    const auto DrawNavigationItem = [&](
+        const char* id,
+        const char* label,
+        IDirect3DTexture9* icon,
+        const UiSection section,
+        const float width) {
+        ImGui::PushID(id);
+
+        const bool selected =
+            selected_section_ == section;
+        const ImVec2 button_size(width, 54.0f);
+        const ImVec2 top_left =
+            ImGui::GetCursorScreenPos();
+
+        ImGui::InvisibleButton(
+            "NavigationButton",
+            button_size);
+
+        const bool hovered =
+            ImGui::IsItemHovered();
+        if (ImGui::IsItemClicked()) {
+            selected_section_ = section;
+        }
+
+        ImDrawList* draw_list =
+            ImGui::GetWindowDrawList();
+        const ImU32 background =
+            ImGui::GetColorU32(
+                selected
+                    ? ImVec4(
+                          0.18f,
+                          0.40f,
+                          0.62f,
+                          0.95f)
+                    : hovered
+                        ? ImVec4(
+                              0.22f,
+                              0.32f,
+                              0.44f,
+                              0.90f)
+                        : ImVec4(
+                              0.13f,
+                              0.18f,
+                              0.25f,
+                              0.85f));
+
+        draw_list->AddRectFilled(
+            top_left,
+            ImVec2(
+                top_left.x + button_size.x,
+                top_left.y + button_size.y),
+            background,
+            5.0f);
+
+        draw_list->AddRect(
+            top_left,
+            ImVec2(
+                top_left.x + button_size.x,
+                top_left.y + button_size.y),
+            ImGui::GetColorU32(
+                selected
+                    ? gold
+                    : ImVec4(
+                          0.28f,
+                          0.34f,
+                          0.42f,
+                          1.0f)),
+            5.0f);
+
+        float text_x = top_left.x + 12.0f;
+
+        if (icon) {
+            const ImVec2 icon_min(
+                top_left.x + 9.0f,
+                top_left.y + 11.0f);
+            const ImVec2 icon_max(
+                icon_min.x + 30.0f,
+                icon_min.y + 30.0f);
+
+            draw_list->AddImage(
+                icon,
+                icon_min,
+                icon_max);
+            text_x = icon_max.x + 8.0f;
+        }
+
+        const ImVec2 text_size =
+            ImGui::CalcTextSize(label);
+        draw_list->AddText(
+            ImVec2(
+                text_x,
+                top_left.y +
+                    (button_size.y - text_size.y) *
+                    0.5f),
+            ImGui::GetColorU32(
+                selected
+                    ? ImVec4(
+                          1.0f,
+                          1.0f,
+                          1.0f,
+                          1.0f)
+                    : ImVec4(
+                          0.82f,
+                          0.85f,
+                          0.90f,
+                          1.0f)),
+            label);
+
+        ImGui::PopID();
+    };
+
+    const float navigation_spacing = 6.0f;
+    const float navigation_width =
+        ImGui::GetContentRegionAvail().x;
+    const float item_width =
+        std::max(
+            92.0f,
+            (navigation_width -
+             navigation_spacing * 5.0f) /
+                6.0f);
+
+    DrawNavigationItem(
+        "WhisperNav",
+        "Whisper",
+        whisper_icon_texture_,
+        UiSection::Whisper,
+        item_width);
+    ImGui::SameLine(0.0f, navigation_spacing);
+
+    DrawNavigationItem(
+        "KeywordsNav",
+        "Keywords",
+        keywords_icon_texture_,
+        UiSection::Keywords,
+        item_width);
+    ImGui::SameLine(0.0f, navigation_spacing);
+
+    DrawNavigationItem(
+        "DropsNav",
+        "Item Drops",
+        drops_icon_texture_,
+        UiSection::ItemDrops,
+        item_width);
+    ImGui::SameLine(0.0f, navigation_spacing);
+
+    DrawNavigationItem(
+        "ChestsNav",
+        "Chests",
+        chests_icon_texture_,
+        UiSection::LockedChests,
+        item_width);
+    ImGui::SameLine(0.0f, navigation_spacing);
+
+    DrawNavigationItem(
+        "SettingsNav",
+        "Settings",
+        settings_icon_texture_,
+        UiSection::Settings,
+        item_width);
+    ImGui::SameLine(0.0f, navigation_spacing);
+
+    DrawNavigationItem(
+        "DebugNav",
+        "Debug",
+        nullptr,
+        UiSection::Debug,
+        item_width);
+
+    ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    ImGui::Checkbox("Enable Plugin", &enabled_);
 
-    if (ImGui::BeginTabBar("ChatSoundsTabs")) {
-        if (ImGui::BeginTabItem("Whisper")) {
+    if (selected_section_ == UiSection::Whisper) {
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Whisper Alerts");
             ImGui::Separator();
             ImGui::Checkbox("Enable Whisper Sound", &whisper_enabled_);
@@ -845,10 +1382,10 @@ void ChatSoundsPlugin::DrawSettings()
             ImGui::SameLine();
             if (ImGui::Button("Test Sound", ImVec2(120.0f, 0.0f))) PlayWav(whisper_wav_);
 
-            ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Keyword Alerts")) {
+    if (selected_section_ == UiSection::Keywords) {
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Keyword Rules");
             ImGui::Separator();
             ImGui::TextWrapped("Play a WAV file when a chat message contains a configured keyword.");
@@ -914,10 +1451,10 @@ void ChatSoundsPlugin::DrawSettings()
             }
             if (remove_index >= 0 && remove_index < static_cast<int>(rules_.size()))
                 rules_.erase(rules_.begin() + remove_index);
-            ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Item Drops")) {
+    if (selected_section_ == UiSection::ItemDrops) {
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Item Drop Alerts");
             ImGui::Separator();
 
@@ -1162,10 +1699,10 @@ void ChatSoundsPlugin::DrawSettings()
                     remove_drop_index);
             }
 
-            ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Locked Chests")) {
+    if (selected_section_ == UiSection::LockedChests) {
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Locked Chest Detection");
             ImGui::Separator();
             ImGui::Checkbox("Enable Locked Chest Sound", &nearby_gadget_alert_enabled_);
@@ -1187,10 +1724,10 @@ void ChatSoundsPlugin::DrawSettings()
             ImGui::SetNextItemWidth(300.0f);
             ImGui::SliderInt("Scan Interval", &nearby_scan_interval_ms_, 100, 5000, "%d ms");
             nearby_scan_interval_ms_ = std::clamp(nearby_scan_interval_ms_, 100, 5000);
-            ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Settings")) {
+    if (selected_section_ == UiSection::Settings) {
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Global Audio");
             ImGui::Separator();
 
@@ -1231,10 +1768,82 @@ void ChatSoundsPlugin::DrawSettings()
                 StopSound();
             }
 
-            ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Debug")) {
+    if (selected_section_ == UiSection::Debug) {
+            ImGui::TextColored(gold, "Image Status");
+            ImGui::Separator();
+
+            const auto ImageStatus = [&](
+                const char* name,
+                const IDirect3DTexture9* texture,
+                const bool failed) {
+                if (texture) {
+                    ImGui::TextColored(
+                        green,
+                        "[OK] %s loaded",
+                        name);
+                }
+                else if (!d3d_device_) {
+                    ImGui::TextColored(
+                        muted,
+                        "[...] %s waiting for Direct3D device",
+                        name);
+                }
+                else if (failed) {
+                    ImGui::TextColored(
+                        red,
+                        "[!] %s failed to decode or create",
+                        name);
+                }
+                else {
+                    ImGui::TextColored(
+                        muted,
+                        "[...] %s not loaded yet",
+                        name);
+                }
+            };
+
+            ImageStatus(
+                "Banner",
+                banner_texture_,
+                banner_texture_failed_);
+            ImageStatus(
+                "Whisper icon",
+                whisper_icon_texture_,
+                whisper_icon_failed_);
+            ImageStatus(
+                "Keyword icon",
+                keywords_icon_texture_,
+                keywords_icon_failed_);
+            ImageStatus(
+                "Drop icon",
+                drops_icon_texture_,
+                drops_icon_failed_);
+            ImageStatus(
+                "Chest icon",
+                chests_icon_texture_,
+                chests_icon_failed_);
+            ImageStatus(
+                "Settings icon",
+                settings_icon_texture_,
+                settings_icon_failed_);
+
+            if (ImGui::Button("Retry Image Loading")) {
+                // Clear only failed flags; keep successfully created textures.
+                banner_texture_failed_ = false;
+                whisper_icon_failed_ = false;
+                keywords_icon_failed_ = false;
+                drops_icon_failed_ = false;
+                chests_icon_failed_ = false;
+                settings_icon_failed_ = false;
+
+                if (d3d_device_) {
+                    LoadUiTextures(d3d_device_);
+                }
+            }
+
+            ImGui::Spacing();
             ImGui::TextColored(gold, "Runtime Status");
             ImGui::Separator();
             ImGui::TextColored(scan_has_player_ ? green : red, "%s Player available", scan_has_player_ ? "[OK]" : "[!] ");
@@ -1292,11 +1901,7 @@ void ChatSoundsPlugin::DrawSettings()
                 }
                 ImGui::EndTable();
             }
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
-    }
-
     ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(3);
 }
@@ -1304,9 +1909,13 @@ void ChatSoundsPlugin::DrawSettings()
 void ChatSoundsPlugin::LoadSettings(
     const wchar_t* folder)
 {
-    ToolboxPlugin::LoadSettings(folder);
+    ToolboxUIPlugin::LoadSettings(folder);
 
     LoadSetting("enabled", enabled_);
+    int selected_section = static_cast<int>(selected_section_);
+    LoadSetting("selected_section", selected_section);
+    selected_section_ = static_cast<UiSection>(
+        std::clamp(selected_section, 0, 5));
     LoadSetting("whisper_enabled", whisper_enabled_);
     LoadSetting("cooldown_ms", cooldown_ms_);
     LoadSetting("sound_volume_percent", sound_volume_percent_);
@@ -1442,6 +2051,9 @@ void ChatSoundsPlugin::SaveSettings(
 {
     SaveSetting("enabled", enabled_);
     SaveSetting(
+        "selected_section",
+        static_cast<int>(selected_section_));
+    SaveSetting(
         "whisper_enabled",
         whisper_enabled_);
     SaveSetting("cooldown_ms", cooldown_ms_);
@@ -1527,7 +2139,7 @@ void ChatSoundsPlugin::SaveSettings(
             WideToUtf8(rule.wav_path.wstring()));
     }
 
-    ToolboxPlugin::SaveSettings(folder);
+    ToolboxUIPlugin::SaveSettings(folder);
 }
 
 std::string ChatSoundsPlugin::WideToUtf8(
