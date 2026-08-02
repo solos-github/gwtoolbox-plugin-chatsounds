@@ -34,6 +34,10 @@
 
 ---
 # Screenshots
+## Item Drops
+
+<img width="1459" height="672" alt="image" src="https://github.com/user-attachments/assets/689ae1dd-0a5c-4051-825a-3dc647c0b8c0" />
+
 
 ## Whisper
 
