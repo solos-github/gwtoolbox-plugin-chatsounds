@@ -8,9 +8,9 @@
 ## Features
 
 ### Deutsch
-
-- 🔔 Eigener Ton bei eingehenden Whispern
-- 🔔 Eigener Ton bei "verschlossenen Truhen" in Kompassrange
+- 🔔 Eigene Sounds für gedroppte Item anhand der Modelid oder Name des Items
+- 🔔 Eigene Sounds bei eingehenden Whispernachrichten
+- 🔔 Eigene SOunds bei "verschlossenen Truhen" in Kompassrange
 - 💬 Beliebig viele Schlagwort-Regeln und jeweils eigene Sounds 🎵 dazu
   - 🎯 Filter nach Chatkanal
   - Alle
