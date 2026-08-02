@@ -2,7 +2,9 @@
 
 #include <GWCA/Managers/ChatMgr.h>
 #include <GWCA/Managers/AgentMgr.h>
+#include <GWCA/Managers/ItemMgr.h>
 #include <GWCA/GameEntities/Agent.h>
+#include <GWCA/GameEntities/Item.h>
 #include <GWCA/Managers/UIMgr.h>
 
 
@@ -162,6 +164,8 @@ void ChatSoundsPlugin::ScanNearbyObjects()
         return;
     }
 
+    ScanNearbyDrops(player, agents);
+
     const GW::Agent* target = GW::Agents::GetTarget();
 
     // Evaluate the current target separately, regardless of
@@ -295,6 +299,159 @@ void ChatSoundsPlugin::ScanNearbyObjects()
     announced_nearby_agents_ =
         std::move(currently_nearby);
 }
+
+
+std::wstring ChatSoundsPlugin::GetDropName(const GW::Item* item)
+{
+    if (!item) {
+        return {};
+    }
+
+    // single_item_name is preferred because it excludes stack quantity.
+    // The returned text follows the Guild Wars client language.
+    if (item->single_item_name && *item->single_item_name) {
+        return item->single_item_name;
+    }
+
+    if (item->name_enc && *item->name_enc) {
+        return item->name_enc;
+    }
+
+    return {};
+}
+
+bool ChatSoundsPlugin::DropRuleMatches(
+    const DropRule& rule,
+    const GW::Item* item,
+    const GW::AgentItem* item_agent,
+    const uint32_t player_agent_id) const
+{
+    if (!rule.enabled || !item || !item_agent) {
+        return false;
+    }
+
+    const uint32_t owner_agent_id = item_agent->owner;
+    const bool is_my_drop =
+        owner_agent_id == player_agent_id;
+    const bool is_other_players_drop =
+        owner_agent_id != player_agent_id;
+
+    bool ownership_allowed = false;
+
+    if (rule.only_my_drops && is_my_drop) {
+        ownership_allowed = true;
+    }
+
+    if (rule.include_other_players_drops &&
+        is_other_players_drop) {
+        ownership_allowed = true;
+    }
+
+    if (!ownership_allowed) {
+        return false;
+    }
+
+    if (rule.match_mode == DropMatchMode::ModelId) {
+        return rule.model_id != 0 &&
+            item->model_id == rule.model_id;
+    }
+
+    if (rule.name.empty()) {
+        return false;
+    }
+
+    const std::wstring item_name = GetDropName(item);
+    if (item_name.empty()) {
+        return false;
+    }
+
+    const std::wstring configured_name =
+        Utf8ToWide(rule.name);
+
+    if (configured_name.empty()) {
+        return false;
+    }
+
+    if (rule.match_mode == DropMatchMode::ExactName) {
+        if (rule.case_sensitive) {
+            return item_name == configured_name;
+        }
+
+        return Lower(item_name) ==
+            Lower(configured_name);
+    }
+
+    return ContainsKeyword(
+        item_name,
+        rule.name,
+        rule.case_sensitive);
+}
+
+void ChatSoundsPlugin::ScanNearbyDrops(
+    const GW::AgentLiving* player,
+    const GW::AgentArray* agents)
+{
+    if (!player || !agents) {
+        announced_drop_agents_.clear();
+        return;
+    }
+
+    std::unordered_set<uint32_t> currently_nearby_drops;
+
+    for (GW::Agent* agent : *agents) {
+        if (!agent) {
+            continue;
+        }
+
+        const GW::AgentItem* item_agent =
+            agent->GetAsAgentItem();
+
+        if (!item_agent) {
+            continue;
+        }
+
+        const float dx = agent->x - player->x;
+        const float dy = agent->y - player->y;
+        const float distance =
+            std::sqrt(dx * dx + dy * dy);
+
+        if (distance > drop_detection_range_) {
+            continue;
+        }
+
+        const GW::Item* item =
+            GW::Items::GetItemById(item_agent->item_id);
+
+        if (!item) {
+            continue;
+        }
+
+        currently_nearby_drops.insert(agent->agent_id);
+
+        if (!enabled_ ||
+            !drop_alerts_enabled_ ||
+            announced_drop_agents_.contains(agent->agent_id)) {
+            continue;
+        }
+
+        for (const DropRule& rule : drop_rules_) {
+            if (!DropRuleMatches(
+                    rule,
+                    item,
+                    item_agent,
+                    player->agent_id)) {
+                continue;
+            }
+
+            PlayWav(rule.wav_path);
+            break;
+        }
+    }
+
+    announced_drop_agents_ =
+        std::move(currently_nearby_drops);
+}
+
 
 void ChatSoundsPlugin::SignalTerminate()
 {
@@ -760,6 +917,254 @@ void ChatSoundsPlugin::DrawSettings()
             ImGui::EndTabItem();
         }
 
+        if (ImGui::BeginTabItem("Item Drops")) {
+            ImGui::TextColored(gold, "Item Drop Alerts");
+            ImGui::Separator();
+
+            ImGui::Checkbox(
+                "Enable Item Drop Alerts",
+                &drop_alerts_enabled_);
+
+            ImGui::TextWrapped(
+                "Play a sound when a matching dropped item appears within range. "
+                "Name rules use the current Guild Wars client language; Model ID rules are language independent. "
+                "Each rule can also filter between your drops and all other drops.");
+
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::SliderFloat(
+                "Drop Detection Range",
+                &drop_detection_range_,
+                100.0f,
+                10000.0f,
+                "%.0f units");
+            drop_detection_range_ =
+                std::clamp(
+                    drop_detection_range_,
+                    100.0f,
+                    10000.0f);
+
+            if (ImGui::Button(
+                    "Add Drop Rule",
+                    ImVec2(170.0f, 0.0f))) {
+                drop_rules_.push_back({});
+            }
+
+            if (drop_rules_.empty()) {
+                ImGui::TextColored(
+                    muted,
+                    "No item drop rules configured.");
+            }
+
+            int remove_drop_index = -1;
+
+            for (size_t i = 0; i < drop_rules_.size(); ++i) {
+                DropRule& rule = drop_rules_[i];
+                ImGui::PushID(
+                    50000 + static_cast<int>(i));
+
+                const char* mode_names[] = {
+                    "Name Contains",
+                    "Exact Name",
+                    "Model ID"
+                };
+
+                const int selected_mode =
+                    std::clamp(
+                        static_cast<int>(rule.match_mode),
+                        0,
+                        static_cast<int>(
+                            IM_ARRAYSIZE(mode_names)) - 1);
+
+                std::string value_text;
+                if (rule.match_mode ==
+                    DropMatchMode::ModelId) {
+                    value_text = rule.model_id == 0
+                        ? "<No Model ID>"
+                        : std::to_string(rule.model_id);
+                }
+                else {
+                    value_text = rule.name.empty()
+                        ? "<New Drop Rule>"
+                        : rule.name;
+                }
+
+                const std::string visible_header =
+                    "Rule " + std::to_string(i + 1) +
+                    " - " +
+                    (rule.rule_name.empty()
+                        ? value_text
+                        : rule.rule_name) +
+                    " [" + mode_names[selected_mode] + "]";
+
+                const std::string header =
+                    visible_header +
+                    "###DropRule" +
+                    std::to_string(i);
+
+                if (ImGui::CollapsingHeader(
+                        header.c_str(),
+                        ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Indent();
+
+                    ImGui::Checkbox(
+                        "Enabled",
+                        &rule.enabled);
+
+                    std::array<char, 256> rule_name{};
+                    strncpy_s(
+                        rule_name.data(),
+                        rule_name.size(),
+                        rule.rule_name.c_str(),
+                        _TRUNCATE);
+
+                    ImGui::SetNextItemWidth(300.0f);
+                    if (ImGui::InputText(
+                            "Rule Name",
+                            rule_name.data(),
+                            rule_name.size())) {
+                        rule.rule_name = rule_name.data();
+                    }
+
+                    int mode = selected_mode;
+                    ImGui::SetNextItemWidth(300.0f);
+                    if (ImGui::Combo(
+                            "Match Mode",
+                            &mode,
+                            mode_names,
+                            IM_ARRAYSIZE(mode_names))) {
+                        rule.match_mode =
+                            static_cast<DropMatchMode>(mode);
+                    }
+
+                    if (rule.match_mode ==
+                        DropMatchMode::ModelId) {
+                        int model_id =
+                            static_cast<int>(rule.model_id);
+
+                        ImGui::SetNextItemWidth(300.0f);
+                        if (ImGui::InputInt(
+                                "Model ID",
+                                &model_id)) {
+                            rule.model_id =
+                                model_id > 0
+                                    ? static_cast<uint32_t>(
+                                          model_id)
+                                    : 0;
+                        }
+
+                        ImGui::TextColored(
+                            muted,
+                            "Model ID matching is independent of the game language.");
+                    }
+                    else {
+                        std::array<char, 256> name{};
+                        strncpy_s(
+                            name.data(),
+                            name.size(),
+                            rule.name.c_str(),
+                            _TRUNCATE);
+
+                        ImGui::SetNextItemWidth(300.0f);
+                        if (ImGui::InputText(
+                                "Item Name",
+                                name.data(),
+                                name.size())) {
+                            rule.name = name.data();
+                        }
+
+                        ImGui::Checkbox(
+                            "Case Sensitive",
+                            &rule.case_sensitive);
+
+                        ImGui::TextColored(
+                            muted,
+                            "Enter the item name as shown by your Guild Wars client.");
+                    }
+
+                    ImGui::Spacing();
+                    ImGui::TextColored(
+                        gold,
+                        "Drop Ownership");
+                    ImGui::Checkbox(
+                        "My Drops",
+                        &rule.only_my_drops);
+                    ImGui::Checkbox(
+                        "Other Players' Drops",
+                        &rule.include_other_players_drops);
+
+                    ImGui::TextColored(
+                        muted,
+                        "Unassigned drops (owner ID 0) are treated as Other Players' Drops.");
+
+                    if (!rule.only_my_drops &&
+                        !rule.include_other_players_drops) {
+                        ImGui::TextColored(
+                            ImVec4(0.92f, 0.34f, 0.34f, 1.0f),
+                            "This rule cannot trigger because no ownership type is selected.");
+                    }
+
+                    const std::string wav_path =
+                        WideToUtf8(
+                            rule.wav_path.wstring());
+
+                    ImGui::TextColored(
+                        muted,
+                        "Selected sound");
+                    ImGui::TextWrapped(
+                        "%s",
+                        wav_path.empty()
+                            ? "No WAV file selected."
+                            : wav_path.c_str());
+
+                    if (ImGui::Button(
+                            "Browse...",
+                            ImVec2(120.0f, 0.0f))) {
+                        SelectWav(rule.wav_path);
+                    }
+
+                    ImGui::SameLine();
+
+                    if (ImGui::Button(
+                            "Test Sound",
+                            ImVec2(120.0f, 0.0f))) {
+                        PlayWav(rule.wav_path);
+                    }
+
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(
+                        ImGuiCol_Button,
+                        ImVec4(
+                            0.48f,
+                            0.19f,
+                            0.19f,
+                            1.0f));
+
+                    if (ImGui::Button(
+                            "Remove",
+                            ImVec2(100.0f, 0.0f))) {
+                        remove_drop_index =
+                            static_cast<int>(i);
+                    }
+
+                    ImGui::PopStyleColor();
+                    ImGui::Unindent();
+                }
+
+                ImGui::PopID();
+            }
+
+            if (remove_drop_index >= 0 &&
+                remove_drop_index <
+                    static_cast<int>(
+                        drop_rules_.size())) {
+                drop_rules_.erase(
+                    drop_rules_.begin() +
+                    remove_drop_index);
+            }
+
+            ImGui::EndTabItem();
+        }
+
         if (ImGui::BeginTabItem("Locked Chests")) {
             ImGui::TextColored(gold, "Locked Chest Detection");
             ImGui::Separator();
@@ -906,6 +1311,11 @@ void ChatSoundsPlugin::LoadSettings(
     LoadSetting("cooldown_ms", cooldown_ms_);
     LoadSetting("sound_volume_percent", sound_volume_percent_);
     sound_volume_percent_ = std::clamp(sound_volume_percent_, 0, 100);
+    LoadSetting("drop_alerts_enabled", drop_alerts_enabled_);
+    LoadSetting("drop_detection_range", drop_detection_range_);
+    drop_detection_range_ =
+        std::clamp(drop_detection_range_, 100.0f, 10000.0f);
+
     LoadSetting("nearby_gadget_alert_enabled", nearby_gadget_alert_enabled_);
     LoadSetting("nearby_gadget_range", nearby_gadget_range_);
     LoadSetting("nearby_scan_interval_ms", nearby_scan_interval_ms_);
@@ -918,6 +1328,73 @@ void ChatSoundsPlugin::LoadSettings(
     std::string whisper;
     LoadSetting("whisper_wav", whisper);
     whisper_wav_ = Utf8ToWide(whisper);
+
+    int drop_rule_count = 0;
+    LoadSetting(
+        "drop_rule_count",
+        drop_rule_count);
+    drop_rule_count =
+        std::clamp(drop_rule_count, 0, 100);
+
+    drop_rules_.clear();
+
+    for (int i = 0; i < drop_rule_count; ++i) {
+        DropRule rule;
+        const std::string prefix =
+            "drop_rule_" +
+            std::to_string(i) +
+            "_";
+
+        LoadSetting(
+            (prefix + "enabled").c_str(),
+            rule.enabled);
+
+        LoadSetting(
+            (prefix + "rule_name").c_str(),
+            rule.rule_name);
+
+        int match_mode =
+            static_cast<int>(rule.match_mode);
+        LoadSetting(
+            (prefix + "match_mode").c_str(),
+            match_mode);
+        rule.match_mode =
+            static_cast<DropMatchMode>(
+                std::clamp(match_mode, 0, 2));
+
+        LoadSetting(
+            (prefix + "name").c_str(),
+            rule.name);
+
+        int model_id = 0;
+        LoadSetting(
+            (prefix + "model_id").c_str(),
+            model_id);
+        rule.model_id =
+            model_id > 0
+                ? static_cast<uint32_t>(model_id)
+                : 0;
+
+        LoadSetting(
+            (prefix + "case_sensitive").c_str(),
+            rule.case_sensitive);
+
+        LoadSetting(
+            (prefix + "only_my_drops").c_str(),
+            rule.only_my_drops);
+        LoadSetting(
+            (prefix + "include_other_players_drops").c_str(),
+            rule.include_other_players_drops);
+
+        std::string wav;
+        LoadSetting(
+            (prefix + "wav").c_str(),
+            wav);
+        rule.wav_path = Utf8ToWide(wav);
+
+        drop_rules_.push_back(
+            std::move(rule));
+    }
 
     int count = 0;
     LoadSetting("rule_count", count);
@@ -969,6 +1446,52 @@ void ChatSoundsPlugin::SaveSettings(
         whisper_enabled_);
     SaveSetting("cooldown_ms", cooldown_ms_);
     SaveSetting("sound_volume_percent", sound_volume_percent_);
+    SaveSetting("drop_alerts_enabled", drop_alerts_enabled_);
+    SaveSetting("drop_detection_range", drop_detection_range_);
+    SaveSetting(
+        "drop_rule_count",
+        static_cast<int>(drop_rules_.size()));
+
+    for (size_t i = 0; i < drop_rules_.size(); ++i) {
+        const DropRule& rule =
+            drop_rules_[i];
+        const std::string prefix =
+            "drop_rule_" +
+            std::to_string(i) +
+            "_";
+
+        SaveSetting(
+            (prefix + "enabled").c_str(),
+            rule.enabled);
+        SaveSetting(
+            (prefix + "rule_name").c_str(),
+            rule.rule_name);
+        SaveSetting(
+            (prefix + "match_mode").c_str(),
+            static_cast<int>(
+                rule.match_mode));
+        SaveSetting(
+            (prefix + "name").c_str(),
+            rule.name);
+        SaveSetting(
+            (prefix + "model_id").c_str(),
+            static_cast<int>(
+                rule.model_id));
+        SaveSetting(
+            (prefix + "case_sensitive").c_str(),
+            rule.case_sensitive);
+        SaveSetting(
+            (prefix + "only_my_drops").c_str(),
+            rule.only_my_drops);
+        SaveSetting(
+            (prefix + "include_other_players_drops").c_str(),
+            rule.include_other_players_drops);
+        SaveSetting(
+            (prefix + "wav").c_str(),
+            WideToUtf8(
+                rule.wav_path.wstring()));
+    }
+
     SaveSetting("nearby_gadget_alert_enabled", nearby_gadget_alert_enabled_);
     SaveSetting("nearby_gadget_range", nearby_gadget_range_);
     SaveSetting("nearby_scan_interval_ms", nearby_scan_interval_ms_);
